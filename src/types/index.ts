@@ -42,21 +42,23 @@ export type SearchList = {
   id: string;
   name: string;
   filters: SearchFilters;
-  member_ids?: string[]; // undefined / empty = tous les membres du couple
+  // undefined/vide = tous les colocs ; [uid] = solo ; [uid1, uid2] = sous-groupe
+  member_ids?: string[];
 };
 
-export type CoupleMember = {
+export type GroupMember = {
   uid: string;
   displayName: string;
 };
 
-export type Couple = {
+// Firestore collection: `couples` (nom historique conservé pour éviter une migration)
+export type Group = {
   id: string;
-  user1_id: string;
-  user2_id: string | null;
-  member_ids: string[]; // canonical list; derived from user1/user2 on old docs
-  invite_code: string;
-  filters: SearchFilters; // legacy — kept for migration
+  user1_id: string;       // legacy
+  user2_id: string | null; // legacy
+  member_ids: string[];   // liste authoritative de tous les colocs
+  invite_code: string;    // code 6 chars (ex: "AB12CD")
+  filters: SearchFilters; // legacy — conservé pour migration
   search_lists: SearchList[];
   active_search_list_id: string;
   created_at: string;
@@ -81,7 +83,7 @@ export type UserSearchResult = {
 
 export type Match = {
   id: string;
-  couple_id: string;
+  couple_id: string;   // Firestore field name (= groupId)
   listing_id: string;
   listing: Listing;
   matched_at: string;
@@ -101,7 +103,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
 export type Note = {
   user_id: string;
   listing_id: string;
-  couple_id: string;
+  couple_id: string;   // Firestore field name (= groupId)
   text: string;
   created_at: string;
 };
@@ -110,7 +112,7 @@ export type UserProfile = {
   id: string;
   email: string;
   display_name: string;
-  couple_id: string | null;
+  couple_id: string | null;  // Firestore field name (= groupId)
   push_token: string | null;
   photo_url: string | null;
   notification_prefs: NotificationPrefs;

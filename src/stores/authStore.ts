@@ -5,11 +5,11 @@ import { UserProfile } from '@/types';
 type AuthState = {
   firebaseUser: User | null;
   profile: UserProfile | null;
-  coupleId: string | null;
+  groupId: string | null;
   isLoading: boolean;
   setFirebaseUser: (user: User | null) => void;
   setProfile: (profile: UserProfile | null) => void;
-  setCoupleId: (id: string | null) => void;
+  setGroupId: (id: string | null) => void;
   setLoading: (loading: boolean) => void;
   reset: () => void;
 };
@@ -17,11 +17,11 @@ type AuthState = {
 export const useAuthStore = create<AuthState>((set) => ({
   firebaseUser: null,
   profile: null,
-  coupleId: null,
+  groupId: null,
   isLoading: true,
   setFirebaseUser: (user) => set({ firebaseUser: user }),
   setProfile: (profile) => set({ profile }),
-  setCoupleId: (id) => set({ coupleId: id }),
+  setGroupId: (id) => set({ groupId: id }),
   setLoading: (isLoading) => set({ isLoading }),
-  reset: () => set({ firebaseUser: null, profile: null, coupleId: null, isLoading: false }),
+  reset: () => set({ firebaseUser: null, profile: null, groupId: null, isLoading: false }),
 }));

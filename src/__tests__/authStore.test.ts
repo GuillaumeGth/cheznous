@@ -17,8 +17,8 @@ describe('authStore — initial state', () => {
     expect(useAuthStore.getState().profile).toBeNull();
   });
 
-  it('coupleId is null', () => {
-    expect(useAuthStore.getState().coupleId).toBeNull();
+  it('groupId is null', () => {
+    expect(useAuthStore.getState().groupId).toBeNull();
   });
 
   it('isLoading is true', () => {
@@ -45,9 +45,9 @@ describe('authStore — actions', () => {
     expect(useAuthStore.getState().profile?.id).toBe('p-1');
   });
 
-  it('setCoupleId stores the coupleId', () => {
-    useAuthStore.getState().setCoupleId('couple-42');
-    expect(useAuthStore.getState().coupleId).toBe('couple-42');
+  it('setGroupId stores the groupId', () => {
+    useAuthStore.getState().setGroupId('group-42');
+    expect(useAuthStore.getState().groupId).toBe('group-42');
   });
 
   it('setLoading updates isLoading', () => {
@@ -55,17 +55,17 @@ describe('authStore — actions', () => {
     expect(useAuthStore.getState().isLoading).toBe(false);
   });
 
-  it('reset clears user, profile and coupleId', () => {
+  it('reset clears user, profile and groupId', () => {
     useAuthStore.getState().setFirebaseUser({ uid: 'x' } as unknown as User);
     useAuthStore.getState().setProfile({ id: 'p-1' } as UserProfile);
-    useAuthStore.getState().setCoupleId('couple-1');
+    useAuthStore.getState().setGroupId('group-1');
 
     useAuthStore.getState().reset();
 
-    const { firebaseUser, profile, coupleId, isLoading } = useAuthStore.getState();
+    const { firebaseUser, profile, groupId, isLoading } = useAuthStore.getState();
     expect(firebaseUser).toBeNull();
     expect(profile).toBeNull();
-    expect(coupleId).toBeNull();
+    expect(groupId).toBeNull();
     expect(isLoading).toBe(false);
   });
 });

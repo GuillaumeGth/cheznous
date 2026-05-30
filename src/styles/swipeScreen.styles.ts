@@ -1,0 +1,88 @@
+import { StyleSheet, Dimensions } from 'react-native';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+
+export const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#F8F9FA' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  appName: { fontSize: 24, fontWeight: '800', color: '#1A1A2E' },
+  partnerStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  partnerStatus: { fontSize: 12, color: '#888' },
+  filterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  filterLabel: { fontSize: 13, color: '#D8B4FE', fontWeight: '700' },
+  cardsArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centered: { alignItems: 'center', gap: 12 },
+  loadingText: { color: '#888', fontSize: 15, marginTop: 8 },
+  emptyTitle: { fontSize: 22, fontWeight: '700', color: '#1A1A2E' },
+  emptyDesc: { fontSize: 14, color: '#888' },
+  reloadBtn: {
+    borderRadius: 14,
+    paddingHorizontal: 28,
+    paddingVertical: 13,
+    marginTop: 8,
+  },
+  reloadText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  undoBtn: {
+    position: 'absolute',
+    left: 16,
+    bottom: 32,
+    width: 48, height: 48, borderRadius: 24,
+    shadowColor: '#4A6CF7', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
+  },
+  undoBtnDisabled: {
+    opacity: 0.35,
+  },
+  undoBtnInner: {
+    width: 48, height: 48, borderRadius: 24,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  floatingNoteBtn: {
+    position: 'absolute',
+    right: 16,
+    bottom: 32,
+    width: 54, height: 54, borderRadius: 27,
+    shadowColor: '#A855F7', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
+  },
+  floatingNoteInner: {
+    width: 54, height: 54, borderRadius: 27,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  matchTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  matchBanner: {
+    position: 'absolute',
+    top: 100,
+    alignSelf: 'center',
+    backgroundColor: '#1A1A2E',
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+    maxWidth: SCREEN_W - 40,
+  },
+  matchText: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  matchSub: { color: '#aaa', fontSize: 12, marginTop: 2 },
+});

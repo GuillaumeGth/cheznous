@@ -124,7 +124,7 @@ Deux sections :
 
 3. **Critères de recherche** : résumé des filtres actifs + bouton "Modifier" → `FilterSheet`.
 
-4. **Notifications** : deux switches `notify_partner_on_swipe` et `notify_on_new_listings`. Activation déclenche `registerPushToken` si aucun token enregistré.
+4. **Notifications** : deux switches `notify_on_partner_swipe` et `notify_on_new_listings`. Activation déclenche `registerPushToken` si aucun token enregistré.
 
 5. **Déconnexion** : `ConfirmSheet` → `signOut(auth)` + `reset()` authStore + redirect `/(auth)`.
 

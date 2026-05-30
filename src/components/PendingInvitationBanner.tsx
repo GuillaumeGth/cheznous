@@ -10,17 +10,16 @@ type Props = {
 };
 
 export default function PendingInvitationBanner({ invitations }: Props) {
-  const { firebaseUser, setCoupleId } = useAuthStore();
-
   const handleAccept = useCallback(async (inv: GroupInvitation) => {
+    const { firebaseUser, setGroupId } = useAuthStore.getState();
     if (!firebaseUser) return;
     try {
       await acceptGroupInvitation(inv.id, inv.group_id, firebaseUser.uid);
-      setCoupleId(inv.group_id);
+      setGroupId(inv.group_id);
     } catch {
       Alert.alert('Erreur', "Impossible d'accepter l'invitation");
     }
-  }, [firebaseUser, setCoupleId]);
+  }, []);
 
   const handleReject = useCallback(async (inv: GroupInvitation) => {
     try {

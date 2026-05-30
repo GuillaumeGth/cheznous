@@ -15,14 +15,14 @@ type FilterState = {
   filters: SearchFilters;
   setSearchLists: (lists: SearchList[], activeId: string) => void;
   setFilters: (filters: SearchFilters) => void;
-  syncFilters: (coupleId: string, filters: SearchFilters, listId?: string) => Promise<void>;
-  addList: (coupleId: string, name: string, memberIds: string[]) => Promise<string>;
-  removeList: (coupleId: string, id: string) => Promise<string>;
-  setActiveList: (coupleId: string, id: string) => Promise<void>;
+  syncFilters: (groupId: string, filters: SearchFilters, listId?: string) => Promise<void>;
+  addList: (groupId: string, name: string, memberIds: string[]) => Promise<string>;
+  removeList: (groupId: string, id: string) => Promise<string>;
+  setActiveList: (groupId: string, id: string) => Promise<void>;
 };
 
-const pushToFirestore = (coupleId: string, lists: SearchList[], activeId: string) =>
-  updateDoc(doc(db, 'couples', coupleId), {
+const pushToFirestore = (groupId: string, lists: SearchList[], activeId: string) =>
+  updateDoc(doc(db, 'couples', groupId), {
     search_lists: lists,
     active_search_list_id: activeId,
   });
@@ -43,40 +43,40 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setFilters: (filters) => set({ filters }),
 
-  syncFilters: async (coupleId, filters, listId) => {
+  syncFilters: async (groupId, filters, listId) => {
     const { searchLists, activeListId } = get();
     const targetId = listId ?? activeListId;
     const updated = searchLists.map((l) => (l.id === targetId ? { ...l, filters } : l));
     set({ filters, searchLists: updated, activeListId: targetId });
-    await pushToFirestore(coupleId, updated, targetId);
+    await pushToFirestore(groupId, updated, targetId);
   },
 
-  addList: async (coupleId, name, memberIds) => {
+  addList: async (groupId, name, memberIds) => {
     const { searchLists } = get();
     const id = Date.now().toString(36);
     const newList: SearchList = { id, name, filters: DEFAULT_FILTERS, member_ids: memberIds };
     const updated = [...searchLists, newList];
     set({ searchLists: updated, activeListId: id, filters: DEFAULT_FILTERS });
-    await pushToFirestore(coupleId, updated, id);
+    await pushToFirestore(groupId, updated, id);
     return id;
   },
 
-  removeList: async (coupleId, id) => {
+  removeList: async (groupId, id) => {
     const { searchLists, activeListId } = get();
     const updated = searchLists.filter((l) => l.id !== id);
     if (updated.length === 0) return activeListId;
     const newActiveId = activeListId === id ? updated[0].id : activeListId;
     const active = updated.find((l) => l.id === newActiveId)!;
     set({ searchLists: updated, activeListId: newActiveId, filters: active.filters });
-    await pushToFirestore(coupleId, updated, newActiveId);
+    await pushToFirestore(groupId, updated, newActiveId);
     return newActiveId;
   },
 
-  setActiveList: async (coupleId, id) => {
+  setActiveList: async (groupId, id) => {
     const { searchLists } = get();
     const active = searchLists.find((l) => l.id === id);
     if (!active) return;
     set({ activeListId: id, filters: active.filters });
-    await updateDoc(doc(db, 'couples', coupleId), { active_search_list_id: id });
+    await updateDoc(doc(db, 'couples', groupId), { active_search_list_id: id });
   },
 }));

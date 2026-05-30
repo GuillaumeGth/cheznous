@@ -42,7 +42,7 @@ Appelé :
 
 ## notifyPartnerOfSwipe(listing, myDisplayName, coupleId, myUserId)
 
-Appelé après un right-swipe si `notify_partner_on_swipe` est activé.
+Appelé après un right-swipe si `notify_on_partner_swipe` est activé.
 
 1. `getPartnerToken(coupleId, myUserId)` : lit `couples/{id}` pour trouver l'UID partenaire, puis lit `users/{partnerId}.push_token`.
 2. `sendPushNotification(token, title, body, data)` :

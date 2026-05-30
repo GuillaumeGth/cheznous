@@ -54,33 +54,40 @@ const DEFAULT_FILTERS: SearchFilters = {
 
 ## SearchList
 
-Liste de recherche nommée portant ses propres filtres.
+Liste de recherche nommée portant ses propres filtres. Elle peut être attachée à tout ou partie des colocs du groupe.
 
 ```ts
 type SearchList = {
   id: string;
   name: string;
   filters: SearchFilters;
-  member_ids?: string[]; // undefined/vide = tous les membres du couple
+  member_ids?: string[]; // undefined/vide = tous les colocs du groupe
+                         // [uid] = liste solo (un seul coloc)
+                         // [uid1, uid2] = sous-groupe de colocs
 };
 ```
 
-## Couple
+Un match est déclenché quand **tous les colocs ciblés** par la liste ont right-swipé le même listing.
 
-Document Firestore représentant la paire de partenaires.
+## Couple (groupe de colocs)
+
+Document Firestore représentant un groupe de colocs en recherche commune. Il peut contenir 2 membres ou plus — il n'y a pas de limite supérieure.
 
 ```ts
 type Couple = {
   id: string;
-  user1_id: string;
-  user2_id: string | null;  // null = partenaire pas encore rejoint
-  invite_code: string;      // code 6 chars (ex: "AB12CD")
-  filters: SearchFilters;   // legacy, conservé pour migration
+  user1_id: string;           // créateur du groupe (legacy)
+  user2_id: string | null;    // legacy, remplacé par member_ids
+  member_ids: string[];       // liste authoritative de tous les colocs
+  invite_code: string;        // code 6 chars (ex: "AB12CD") pour inviter d'autres colocs
+  filters: SearchFilters;     // legacy, conservé pour migration
   search_lists: SearchList[];
   active_search_list_id: string;
-  created_at: string;       // ISO date
+  created_at: string;         // ISO date
 };
 ```
+
+> **Nommage** : le type et la collection s'appellent `Couple` / `couples` pour des raisons historiques. Conceptuellement, il s'agit d'un **groupe de colocs** — N personnes cherchant un logement ensemble.
 
 ## UserProfile
 
@@ -91,7 +98,7 @@ type UserProfile = {
   id: string;
   email: string;
   display_name: string;
-  couple_id: string | null;
+  couple_id: string | null;    // ID du groupe de colocs auquel appartient l'utilisateur
   push_token: string | null;   // token Expo push
   photo_url: string | null;    // URL Firebase Storage
   notification_prefs: NotificationPrefs;
@@ -103,19 +110,19 @@ type UserProfile = {
 
 ```ts
 type NotificationPrefs = {
-  notify_partner_on_swipe: boolean;  // notifier partenaire au like
+  notify_on_partner_swipe: boolean;  // notifier les colocs au like
   notify_on_new_listings: boolean;   // notifier quand nouvelles annonces
 };
 
 const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
-  notify_partner_on_swipe: false,
+  notify_on_partner_swipe: false,
   notify_on_new_listings: false,
 };
 ```
 
 ## Match
 
-Document Firestore créé quand les deux partenaires ont right-swipé le même listing.
+Document Firestore créé quand tous les colocs ciblés par la liste active ont right-swipé le même listing.
 
 ```ts
 type Match = {
@@ -130,7 +137,7 @@ type Match = {
 
 ## Note
 
-Note personnelle d'un utilisateur sur un listing (visible par son partenaire).
+Note personnelle d'un utilisateur sur un listing (visible par tous les colocs du groupe).
 
 ```ts
 type Note = {
@@ -144,7 +151,7 @@ type Note = {
 
 ## CoupleMember
 
-Tuple léger utilisé dans les composants pour afficher les membres.
+Tuple léger utilisé dans les composants pour afficher les membres du groupe.
 
 ```ts
 type CoupleMember = {

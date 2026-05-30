@@ -20,7 +20,7 @@ describe('DEFAULT_FILTERS', () => {
 
 describe('DEFAULT_NOTIFICATION_PREFS', () => {
   it('disables partner swipe notifications by default', () => {
-    expect(DEFAULT_NOTIFICATION_PREFS.notify_partner_on_swipe).toBe(false);
+    expect(DEFAULT_NOTIFICATION_PREFS.notify_on_partner_swipe).toBe(false);
   });
 
   it('disables new listing notifications by default', () => {

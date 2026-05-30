@@ -15,9 +15,13 @@ npx expo start --web
 
 There is no lint or test script configured.
 
+## Rules
+
+@.claude/rules/state-stability.md
+
 ## Architecture
 
-**Chez Nous** is a couples apartment-hunting app for Paris. Two partners link accounts, swipe on listings independently, and get a match when both right-swipe the same listing.
+**Chez Nous** is an apartment-hunting app for colocs (roommates) in Paris. A group of N people link accounts, swipe on listings independently, and get a match when all targeted members of a search list right-swipe the same listing.
 
 ### Path alias
 
@@ -70,7 +74,7 @@ Singleton init in `src/lib/firebase.ts` with `experimentalForceLongPolling: true
 
 ### Notifications
 
-`src/lib/notifications.ts` — push tokens registered via Expo Notifications on login (real device only; silently skipped on simulator). Partner swipe notifications are sent via the Expo push API (`https://exp.host/--/api/v2/push/send`) directly from the client — there is no server-side function. `notify_partner_on_swipe` and `notify_on_new_listings` are opt-in prefs on `UserProfile`.
+`src/lib/notifications.ts` — push tokens registered via Expo Notifications on login (real device only; silently skipped on simulator). Partner swipe notifications are sent via the Expo push API (`https://exp.host/--/api/v2/push/send`) directly from the client — there is no server-side function. `notify_on_partner_swipe` and `notify_on_new_listings` are opt-in prefs on `UserProfile`.
 
 ### Environment variables
 

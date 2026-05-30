@@ -50,21 +50,28 @@ export async function registerPushToken(userId: string): Promise<string | null> 
   return token;
 }
 
-export async function getPartnerToken(
-  coupleId: string,
+// Returns push tokens for all colocs in the group except the caller.
+export async function getMemberTokens(
+  groupId: string,
   myUserId: string,
-): Promise<string | null> {
-  const coupleSnap = await getDoc(doc(db, 'couples', coupleId));
-  if (!coupleSnap.exists()) return null;
+): Promise<string[]> {
+  const groupSnap = await getDoc(doc(db, 'couples', groupId));
+  if (!groupSnap.exists()) return [];
 
-  const { user1_id, user2_id } = coupleSnap.data();
-  const partnerId = user1_id === myUserId ? user2_id : user1_id;
-  if (!partnerId) return null;
+  const data = groupSnap.data();
+  const memberIds: string[] = data.member_ids?.length
+    ? data.member_ids
+    : [data.user1_id, ...(data.user2_id ? [data.user2_id] : [])];
 
-  const partnerSnap = await getDoc(doc(db, 'users', partnerId));
-  if (!partnerSnap.exists()) return null;
-
-  return partnerSnap.data().push_token ?? null;
+  const otherIds = memberIds.filter((id) => id !== myUserId);
+  const tokens = await Promise.all(
+    otherIds.map(async (id) => {
+      const snap = await getDoc(doc(db, 'users', id));
+      if (!snap.exists()) return null;
+      return (snap.data().push_token as string | null) ?? null;
+    }),
+  );
+  return tokens.filter(Boolean) as string[];
 }
 
 export async function sendPushNotification(
@@ -84,20 +91,23 @@ export async function sendPushNotification(
   });
 }
 
-export async function notifyPartnerOfSwipe(
+// Notifies all colocs in the group (except the swiper) when someone likes a listing.
+export async function notifyColocsOfSwipe(
   listing: Listing,
   myDisplayName: string,
-  coupleId: string,
+  groupId: string,
   myUserId: string,
 ): Promise<void> {
-  const partnerToken = await getPartnerToken(coupleId, myUserId);
-  if (!partnerToken) return;
-
-  await sendPushNotification(
-    partnerToken,
-    `${myDisplayName} a liké un appart !`,
-    listing.title,
-    { type: 'partner_swipe', listingId: listing.id },
+  const tokens = await getMemberTokens(groupId, myUserId);
+  await Promise.all(
+    tokens.map((token) =>
+      sendPushNotification(
+        token,
+        `${myDisplayName} a liké un appart !`,
+        listing.title,
+        { type: 'partner_swipe', listingId: listing.id },
+      ),
+    ),
   );
 }
 

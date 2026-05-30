@@ -51,7 +51,6 @@ const ResultItem = memo(function ResultItem({ item, onInvite, invited }: ResultI
 });
 
 export default function AddMemberSheet({ visible, groupId, currentMemberIds, onClose }: Props) {
-  const { firebaseUser, profile } = useAuthStore();
   const [term, setTerm] = useState('');
   const [results, setResults] = useState<UserSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -77,6 +76,7 @@ export default function AddMemberSheet({ visible, groupId, currentMemberIds, onC
     if (text.trim().length < 2) { setResults([]); return; }
     setSearching(true);
     try {
+      const { firebaseUser } = useAuthStore.getState();
       const found = await searchUsers(text, [
         ...(firebaseUser ? [firebaseUser.uid] : []),
         ...currentMemberIds,
@@ -87,9 +87,10 @@ export default function AddMemberSheet({ visible, groupId, currentMemberIds, onC
     } finally {
       setSearching(false);
     }
-  }, [firebaseUser, currentMemberIds]);
+  }, [currentMemberIds]);
 
   const handleInvite = useCallback(async (inviteeId: string) => {
+    const { firebaseUser, profile } = useAuthStore.getState();
     if (!firebaseUser || !profile) return;
     try {
       await sendGroupInvitation(groupId, firebaseUser.uid, profile.display_name, inviteeId);
@@ -97,7 +98,7 @@ export default function AddMemberSheet({ visible, groupId, currentMemberIds, onC
     } catch {
       Alert.alert('Erreur', "Impossible d'envoyer l'invitation");
     }
-  }, [firebaseUser, profile, groupId]);
+  }, [groupId]);
 
   const renderItem = useCallback(({ item }: { item: UserSearchResult }) => (
     <ResultItem

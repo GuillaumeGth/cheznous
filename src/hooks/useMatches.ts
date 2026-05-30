@@ -5,12 +5,12 @@ import { Match } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 
 export function useMatches() {
-  const { coupleId } = useAuthStore();
+  const groupId = useAuthStore((s) => s.groupId);
   const [matches, setMatches] = useState<Match[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!coupleId) {
+    if (!groupId) {
       setMatches([]);
       setIsLoading(false);
       return;
@@ -18,7 +18,7 @@ export function useMatches() {
 
     const q = query(
       collection(db, 'matches'),
-      where('couple_id', '==', coupleId),
+      where('couple_id', '==', groupId),
     );
 
     const unsub = onSnapshot(
@@ -33,7 +33,7 @@ export function useMatches() {
     );
 
     return unsub;
-  }, [coupleId]);
+  }, [groupId]);
 
   return { matches, isLoading };
 }

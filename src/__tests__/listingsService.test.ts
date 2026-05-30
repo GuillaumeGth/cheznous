@@ -164,11 +164,33 @@ describe('fetchListings — stream.estate API path', () => {
 
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
+      status: 500,
+      text: () => Promise.resolve('Server Error'),
+    }) as unknown as typeof fetch;
+
+    // 500 is a genuine error (not a billing/quota status) → must throw
+    await expect(fetchWithKey(DEFAULT_FILTERS)).rejects.toThrow('500');
+
+    delete process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY;
+  });
+
+  it('falls back to mock data on billing/quota statuses (403/402/429)', async () => {
+    process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY = 'test-key';
+    let fetchWithKey!: typeof fetchListings;
+
+    jest.isolateModules(() => {
+      fetchWithKey = require('@/services/listingsService').fetchListings;
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
       status: 403,
       text: () => Promise.resolve('Forbidden'),
     }) as unknown as typeof fetch;
 
-    await expect(fetchWithKey(DEFAULT_FILTERS)).rejects.toThrow('403');
+    const listings = await fetchWithKey(DEFAULT_FILTERS);
+    expect(listings.length).toBeGreaterThan(0);
+    expect(listings[0].source).toBe('mock');
 
     delete process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY;
   });

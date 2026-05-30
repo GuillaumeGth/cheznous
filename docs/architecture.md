@@ -23,7 +23,7 @@ app/                        ← Expo Router (écrans)
   (auth)/
     _layout.tsx
     index.tsx               ← Login / Register / Google
-    couple.tsx              ← Créer ou rejoindre un couple
+    invite.tsx              ← Créer ou rejoindre un groupe de colocs
   (tabs)/
     _layout.tsx             ← Barre de navigation bas
     index.tsx               ← Écran swipe (fonctionnalité principale)
@@ -75,7 +75,7 @@ app/index.tsx ──── isLoading=true ──→ <ActivityIndicator>
     │
     ├── pas de firebaseUser ──────────→ /(auth)
     │
-    ├── user sans coupleId ───────────→ /(auth)/couple
+    ├── user sans coupleId ───────────→ /(auth)/invite
     │
     └── user + coupleId ──────────────→ /(tabs)
 ```
@@ -92,16 +92,19 @@ Utilisateur glisse → handleSwipe(direction)
         └── si direction === 'right'
               ├── checkForMatch(listing)
               │     ├── liste solo → createMatch() immédiatement
-              │     └── liste partagée → query swipes du partenaire
-              │           └── si partenaire a liké → createMatch()
-              └── si notify_partner_on_swipe → notifyPartnerOfSwipe()
+              │     └── liste partagée → query swipes des membres requis
+              │           └── si tous ont liké → createMatch()
+              └── si notify_on_partner_swipe → notifyColocs()
 ```
 
 ## Listes de recherche (SearchList)
 
-Chaque couple peut avoir plusieurs `SearchList`. Chaque liste a ses propres `SearchFilters` et peut être limitée à un sous-ensemble de membres (`member_ids`).
+Un groupe de colocs peut avoir plusieurs `SearchList`. Chaque liste a ses propres `SearchFilters` et peut être limitée à un sous-ensemble de membres (`member_ids`).
 
-- **Liste partagée** (member_ids vide ou les deux UID) : match déclenché seulement quand les deux partenaires ont right-swipé.
+- **Liste partagée** (member_ids vide = tous les colocs) : match déclenché seulement quand tous les membres concernés ont right-swipé.
 - **Liste solo** (member_ids = [uid]) : match automatique au right-swipe de la personne seule.
+- **Liste sous-groupe** (member_ids = [uid1, uid2, ...]) : match quand tous les membres du sous-groupe ont right-swipé.
 
 Les listes sont stockées dans le document `couples/{coupleId}` sous `search_lists[]` et `active_search_list_id`.
+
+> **Note** : le nom de collection Firestore reste `couples` et le champ `coupleId` reste inchangé dans le code — c'est un détail d'implémentation historique. Conceptuellement, un "couple" désigne un **groupe de colocs** (2 membres ou plus).

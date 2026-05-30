@@ -25,7 +25,6 @@ export default function LoginScreen() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setFirebaseUser, setProfile, setCoupleId } = useAuthStore();
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
@@ -42,6 +41,7 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
+      const { setFirebaseUser, setProfile, setGroupId } = useAuthStore.getState();
       const credential = GoogleAuthProvider.credential(idToken);
       const userCred = await signInWithCredential(auth, credential);
 
@@ -51,9 +51,9 @@ export default function LoginScreen() {
       if (snap.exists()) {
         const profile = snap.data() as any;
         setProfile(profile);
-        const coupleId = profile.couple_id ?? null;
-        setCoupleId(coupleId);
-        router.replace(coupleId ? '/(tabs)' : '/(auth)/couple');
+        const groupId = profile.couple_id ?? null;
+        setGroupId(groupId);
+        router.replace(groupId ? '/(tabs)' : '/(auth)/invite');
       } else {
         await setDoc(doc(db, 'users', userCred.user.uid), {
           id: userCred.user.uid,
@@ -65,7 +65,7 @@ export default function LoginScreen() {
           notification_prefs: DEFAULT_NOTIFICATION_PREFS,
           created_at: new Date().toISOString(),
         });
-        router.replace('/(auth)/couple');
+        router.replace('/(auth)/invite');
       }
     } catch (e: any) {
       console.error('[Auth] Google error:', e.code, e.message);
@@ -79,6 +79,7 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
+      const { setFirebaseUser, setProfile, setGroupId } = useAuthStore.getState();
       let userCred;
       if (mode === 'login') {
         userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -100,11 +101,11 @@ export default function LoginScreen() {
       if (snap.exists()) {
         const profile = snap.data() as any;
         setProfile(profile);
-        const coupleId = profile.couple_id ?? null;
-        setCoupleId(coupleId);
-        router.replace(coupleId ? '/(tabs)' : '/(auth)/couple');
+        const groupId = profile.couple_id ?? null;
+        setGroupId(groupId);
+        router.replace(groupId ? '/(tabs)' : '/(auth)/invite');
       } else {
-        router.replace('/(auth)/couple');
+        router.replace('/(auth)/invite');
       }
     } catch (e: any) {
       console.error('[Auth] error:', e.code, e.message, e);

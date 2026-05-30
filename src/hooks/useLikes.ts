@@ -12,12 +12,12 @@ export type Like = {
 };
 
 export function useLikes() {
-  const { firebaseUser } = useAuthStore();
+  const uid = useAuthStore((s) => s.firebaseUser?.uid);
   const [likes, setLikes] = useState<Like[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!firebaseUser) {
+    if (!uid) {
       setLikes([]);
       setIsLoading(false);
       return;
@@ -25,7 +25,7 @@ export function useLikes() {
 
     const q = query(
       collection(db, 'swipes'),
-      where('user_id', '==', firebaseUser.uid),
+      where('user_id', '==', uid),
     );
 
     const unsub = onSnapshot(
@@ -55,7 +55,7 @@ export function useLikes() {
     );
 
     return unsub;
-  }, [firebaseUser?.uid]);
+  }, [uid]);
 
   return { likes, isLoading };
 }

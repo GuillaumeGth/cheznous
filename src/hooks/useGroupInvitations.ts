@@ -5,15 +5,15 @@ import { GroupInvitation } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 
 export function useGroupInvitations(): GroupInvitation[] {
-  const { firebaseUser } = useAuthStore();
+  const uid = useAuthStore((s) => s.firebaseUser?.uid);
   const [invitations, setInvitations] = useState<GroupInvitation[]>([]);
 
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!uid) return;
 
     const q = query(
       collection(db, 'group_invitations'),
-      where('invitee_id', '==', firebaseUser.uid),
+      where('invitee_id', '==', uid),
       where('status', '==', 'pending'),
     );
 
@@ -24,7 +24,7 @@ export function useGroupInvitations(): GroupInvitation[] {
     });
 
     return unsub;
-  }, [firebaseUser?.uid]);
+  }, [uid]);
 
   return invitations;
 }

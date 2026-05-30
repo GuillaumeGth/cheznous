@@ -42,7 +42,7 @@ type FilterState = {
 };
 ```
 
-**Persistance** : toutes les mutations écrivent dans `couples/{coupleId}` via `pushToFirestore` (helper interne). Les deux partenaires voient les mêmes listes grâce au listener realtime dans `useCouple`.
+**Persistance** : toutes les mutations écrivent dans `couples/{coupleId}` via `pushToFirestore` (helper interne). Tous les colocs du groupe voient les mêmes listes grâce au listener realtime dans `useCouple`.
 
 **Liste par défaut** : `DEFAULT_LIST` (id `'default'`, nom `'Ma recherche'`, filtres par défaut). Injectée si la migration depuis l'ancien champ `filters` est nécessaire.
 
@@ -55,10 +55,11 @@ type FilterState = {
 - Souscrit en **realtime** (`onSnapshot`) au document `couples/{coupleId}`.
 - Met à jour `filterStore` avec les listes de recherche à chaque changement.
 - Assure la **migration** : si `search_lists` est absent, crée une liste default à partir de l'ancien champ `filters`.
-- Fetch en one-shot le profil du partenaire via `getDoc`.
+- Fetch en one-shot les profils de **tous les autres colocs** (N-1) via `getDoc`.
 
 ```ts
-const { couple, partnerProfile } = useCouple();
+const { couple, memberProfiles } = useCouple();
+// memberProfiles: UserProfile[] — tous les colocs sauf soi-même
 ```
 
 ### useListings (`src/hooks/useListings.ts`)

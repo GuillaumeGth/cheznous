@@ -9,7 +9,7 @@ import { useListingsStore } from '@/stores/listingsStore';
 export function useListings() {
   const stack = useListingsStore((s) => s.stack);
   const isLoading = useListingsStore((s) => s.isLoading);
-  const { filters } = useFilterStore();
+  const filters = useFilterStore((s) => s.filters);
 
   // Always-fresh ref so the callbacks below stay stable (no deps) while still
   // reading the latest filters.

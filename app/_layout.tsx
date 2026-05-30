@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
@@ -11,7 +12,9 @@ import { registerPushToken } from '@/lib/notifications';
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types';
 
 export default function RootLayout() {
-  const { setFirebaseUser, setProfile, setCoupleId, setLoading } = useAuthStore();
+  // No store subscription: RootLayout renders a static tree. Setters are read
+  // via getState() inside the listener so this component never re-renders on
+  // auth state changes.
   const notifListener = useRef<Notifications.EventSubscription | null>(null);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
@@ -26,6 +29,7 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    const { setFirebaseUser, setProfile, setGroupId, setLoading } = useAuthStore.getState();
     const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user) {
@@ -40,13 +44,13 @@ export default function RootLayout() {
             profile.push_token = null;
           }
           setProfile(profile);
-          setCoupleId(profile.couple_id ?? null);
+          setGroupId(profile.couple_id ?? null);
           // Register push token silently — fails gracefully on simulator
           registerPushToken(user.uid).catch(() => {});
         }
       } else {
         setProfile(null);
-        setCoupleId(null);
+        setGroupId(null);
       }
       setLoading(false);
     });
@@ -54,9 +58,11 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }} />
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar style="dark" />
+        <Stack screenOptions={{ headerShown: false }} />
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

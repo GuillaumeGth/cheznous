@@ -3,7 +3,11 @@ import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function Index() {
-  const { firebaseUser, coupleId, isLoading } = useAuthStore();
+  // Atomic selectors: re-render only when the relevant boolean flips, not on
+  // every profile/auth field change.
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const hasUser = useAuthStore((s) => !!s.firebaseUser);
+  const hasGroup = useAuthStore((s) => !!s.groupId);
 
   if (isLoading) {
     return (
@@ -13,7 +17,7 @@ export default function Index() {
     );
   }
 
-  if (!firebaseUser) return <Redirect href="/(auth)" />;
-  if (!coupleId) return <Redirect href="/(auth)/couple" />;
+  if (!hasUser) return <Redirect href="/(auth)" />;
+  if (!hasGroup) return <Redirect href="/(auth)/invite" />;
   return <Redirect href="/(tabs)" />;
 }

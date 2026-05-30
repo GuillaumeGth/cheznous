@@ -12,7 +12,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { auth, db, storage } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
-import { useCouple } from '@/hooks/useCouple';
+import { useGroup } from '@/hooks/useGroup';
 import { useGroupInvitations } from '@/hooks/useGroupInvitations';
 import { useFilterStore } from '@/stores/filterStore';
 import { registerPushToken } from '@/lib/notifications';
@@ -21,30 +21,30 @@ import AddMemberSheet from '@/components/AddMemberSheet';
 import PendingInvitationBanner from '@/components/PendingInvitationBanner';
 import Toast, { ToastType } from '@/components/Toast';
 import ConfirmSheet from '@/components/ConfirmSheet';
-import { CoupleMember, NotificationPrefs, DEFAULT_NOTIFICATION_PREFS } from '@/types';
+import { GroupMember, NotificationPrefs, DEFAULT_NOTIFICATION_PREFS } from '@/types';
+
+type ActiveModal = 'filter' | 'addMember' | 'logout' | null;
 
 export default function ProfileScreen() {
-  const { firebaseUser, profile, setProfile, reset } = useAuthStore();
-  const { couple, partnerProfile, memberProfiles } = useCouple();
-  const { filters } = useFilterStore();
+  const firebaseUser = useAuthStore((s) => s.firebaseUser);
+  const profile = useAuthStore((s) => s.profile);
+  const filters = useFilterStore((s) => s.filters);
+  const { group, memberProfiles } = useGroup();
   const pendingInvitations = useGroupInvitations();
-  const [filterVisible, setFilterVisible] = useState(false);
-  const [addMemberVisible, setAddMemberVisible] = useState(false);
 
-  const members = useMemo<CoupleMember[]>(() => {
-    const result: CoupleMember[] = [];
+  const [modal, setModal] = useState<ActiveModal>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+
+  const members = useMemo<GroupMember[]>(() => {
+    const result: GroupMember[] = [];
     if (firebaseUser && profile) {
       result.push({ uid: firebaseUser.uid, displayName: profile.display_name });
     }
-    if (partnerProfile) {
-      result.push({ uid: partnerProfile.id, displayName: partnerProfile.display_name });
-    }
+    memberProfiles.forEach((mp) => result.push({ uid: mp.id, displayName: mp.display_name }));
     return result;
-  }, [firebaseUser, profile, partnerProfile]);
+  }, [firebaseUser, profile, memberProfiles]);
 
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [logoutVisible, setLogoutVisible] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const notifPrefs: NotificationPrefs = profile?.notification_prefs ?? DEFAULT_NOTIFICATION_PREFS;
 
   const showToast = (message: string, type: ToastType = 'info') => setToast({ message, type });
@@ -76,7 +76,7 @@ export default function ProfileScreen() {
       await uploadBytes(storageRef, blob);
       const downloadURL = await getDownloadURL(storageRef);
       await updateDoc(doc(db, 'users', firebaseUser.uid), { photo_url: downloadURL });
-      setProfile({ ...profile, photo_url: downloadURL });
+      useAuthStore.getState().setProfile({ ...profile, photo_url: downloadURL });
       showToast('Photo mise à jour !', 'success');
     } catch {
       showToast('Impossible de changer la photo. Réessaie.', 'error');
@@ -93,7 +93,7 @@ export default function ProfileScreen() {
       [key]: !notifPrefs[key],
     };
 
-    // If enabling any notification, ensure push token is registered
+    const { setProfile } = useAuthStore.getState();
     if (updated[key] && !profile.push_token) {
       const token = await registerPushToken(firebaseUser.uid);
       if (!token) {
@@ -111,16 +111,16 @@ export default function ProfileScreen() {
   };
 
   const confirmLogout = async () => {
-    setLogoutVisible(false);
+    setModal(null);
     await signOut(auth);
-    reset();
+    useAuthStore.getState().reset();
     router.replace('/(auth)');
   };
 
   const shareInvite = () => {
-    if (!couple?.invite_code) return;
+    if (!group?.invite_code) return;
     Share.share({
-      message: `Rejoins-moi sur Chez Nous pour chercher notre appart à Paris ! Code : ${couple.invite_code}`,
+      message: `Rejoins-moi sur Chez Nous pour chercher notre appart à Paris ! Code : ${group.invite_code}`,
     });
   };
 
@@ -178,12 +178,12 @@ export default function ProfileScreen() {
         {/* Groupe / colocs */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notre groupe</Text>
-          {couple ? (
-            <View style={styles.coupleCard}>
-              <View style={styles.coupleRow}>
-                <Text style={styles.coupleLabel}>Membres</Text>
-                <Text style={styles.coupleValue}>
-                  {(couple.member_ids?.length ?? 1)} personne{(couple.member_ids?.length ?? 1) > 1 ? 's' : ''}
+          {group ? (
+            <View style={styles.groupCard}>
+              <View style={styles.groupRow}>
+                <Text style={styles.groupLabel}>Colocs</Text>
+                <Text style={styles.groupValue}>
+                  {(group.member_ids?.length ?? 1)} personne{(group.member_ids?.length ?? 1) > 1 ? 's' : ''}
                 </Text>
               </View>
 
@@ -202,16 +202,16 @@ export default function ProfileScreen() {
               <View style={styles.divider} />
               <TouchableOpacity
                 style={styles.shareBtn}
-                onPress={() => setAddMemberVisible(true)}
+                onPress={() => setModal('addMember')}
               >
                 <Ionicons name="person-add-outline" size={15} color="#4A6CF7" />
                 <Text style={styles.shareBtnText}>Ajouter un coloc</Text>
               </TouchableOpacity>
 
               <View style={styles.divider} />
-              <View style={styles.coupleRow}>
-                <Text style={styles.coupleLabel}>Code d'invitation</Text>
-                <Text style={styles.inviteCode}>{couple.invite_code}</Text>
+              <View style={styles.groupRow}>
+                <Text style={styles.groupLabel}>Code d'invitation</Text>
+                <Text style={styles.inviteCode}>{group.invite_code}</Text>
               </View>
               <TouchableOpacity style={[styles.shareBtn, styles.shareBtnSecondary]} onPress={shareInvite}>
                 <Text style={styles.shareBtnText}>Partager le code</Text>
@@ -220,7 +220,7 @@ export default function ProfileScreen() {
           ) : (
             <TouchableOpacity
               style={styles.joinBtn}
-              onPress={() => router.push('/(auth)/couple')}
+              onPress={() => router.push('/(auth)/invite')}
             >
               <Text style={styles.joinBtnText}>Créer ou rejoindre un groupe</Text>
             </TouchableOpacity>
@@ -233,7 +233,7 @@ export default function ProfileScreen() {
           <View style={styles.card}>
             <View style={styles.filterRow}>
               <Text style={styles.filterSummary}>{filtersLabel()}</Text>
-              <TouchableOpacity onPress={() => setFilterVisible(true)}>
+              <TouchableOpacity onPress={() => setModal('filter')}>
                 <Text style={styles.editLink}>Modifier</Text>
               </TouchableOpacity>
             </View>
@@ -249,9 +249,9 @@ export default function ProfileScreen() {
                 value={filters.rooms_min === 0 ? 'Tous' : filters.rooms_min === 1 ? 'Studio+' : `${filters.rooms_min} pièces+`}
               />
             </View>
-            {couple && (
+            {group && (
               <Text style={styles.sharedNote}>
-                Ces filtres sont partagés avec votre partenaire
+                Ces filtres sont partagés avec vos colocs
               </Text>
             )}
           </View>
@@ -263,10 +263,10 @@ export default function ProfileScreen() {
           <View style={styles.notifCard}>
             <NotifRow
               icon={<Ionicons name="home-outline" size={22} color="#555" />}
-              title="Prévenir mon partenaire"
-              desc="Ton partenaire reçoit une notif quand tu likes un appart"
-              value={notifPrefs.notify_partner_on_swipe}
-              onToggle={() => toggleNotifPref('notify_partner_on_swipe')}
+              title="Prévenir mes colocs"
+              desc="Tes colocs reçoivent une notif quand tu likes un appart"
+              value={notifPrefs.notify_on_partner_swipe}
+              onToggle={() => toggleNotifPref('notify_on_partner_swipe')}
             />
             <View style={styles.divider} />
             <NotifRow
@@ -281,7 +281,7 @@ export default function ProfileScreen() {
 
         {/* Logout */}
         <View style={styles.section}>
-          <TouchableOpacity style={styles.logoutBtn} onPress={() => setLogoutVisible(true)}>
+          <TouchableOpacity style={styles.logoutBtn} onPress={() => setModal('logout')}>
             <Text style={styles.logoutText}>Se déconnecter</Text>
           </TouchableOpacity>
         </View>
@@ -289,24 +289,24 @@ export default function ProfileScreen() {
         <View style={{ height: 32 }} />
       </ScrollView>
 
-      <FilterSheet visible={filterVisible} onClose={() => setFilterVisible(false)} members={members} />
-      {couple && (
+      <FilterSheet visible={modal === 'filter'} onClose={() => setModal(null)} members={members} />
+      {group && (
         <AddMemberSheet
-          visible={addMemberVisible}
-          groupId={couple.id}
-          currentMemberIds={couple.member_ids ?? [couple.user1_id, ...(couple.user2_id ? [couple.user2_id] : [])]}
-          onClose={() => setAddMemberVisible(false)}
+          visible={modal === 'addMember'}
+          groupId={group.id}
+          currentMemberIds={group.member_ids ?? [group.user1_id, ...(group.user2_id ? [group.user2_id] : [])]}
+          onClose={() => setModal(null)}
         />
       )}
 
       <ConfirmSheet
-        visible={logoutVisible}
+        visible={modal === 'logout'}
         title="Déconnexion"
         message="Voulez-vous vous déconnecter ?"
         confirmLabel="Se déconnecter"
         confirmDestructive
         onConfirm={confirmLogout}
-        onCancel={() => setLogoutVisible(false)}
+        onCancel={() => setModal(null)}
       />
 
       <Toast
@@ -396,21 +396,20 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.5,
     marginHorizontal: 20, marginBottom: 10,
   },
-  coupleCard: {
+  groupCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
     marginHorizontal: 16,
   },
-  coupleRow: {
+  groupRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 6,
   },
-  coupleLabel: { fontSize: 14, color: '#888' },
-  coupleValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  coupleValue: { fontSize: 14, fontWeight: '600', color: '#1A1A2E' },
+  groupLabel: { fontSize: 14, color: '#888' },
+  groupValue: { fontSize: 14, fontWeight: '600', color: '#1A1A2E' },
   inviteCode: { fontSize: 18, fontWeight: '800', letterSpacing: 4, color: '#4A6CF7' },
   divider: { height: 1, backgroundColor: '#f0f0f0', marginVertical: 8 },
   shareBtn: {

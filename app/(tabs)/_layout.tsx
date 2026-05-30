@@ -3,9 +3,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function TabsLayout() {
-  const { firebaseUser, isLoading } = useAuthStore();
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const hasUser = useAuthStore((s) => !!s.firebaseUser);
 
-  if (!isLoading && !firebaseUser) {
+  if (!isLoading && !hasUser) {
     return <Redirect href="/(auth)" />;
   }
 

@@ -4,14 +4,14 @@ import {
   ScrollView, Platform, TextInput, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CoupleMember, SearchFilters, DEFAULT_FILTERS } from '@/types';
+import { GroupMember, SearchFilters, DEFAULT_FILTERS } from '@/types';
 import { useFilterStore } from '@/stores/filterStore';
 import { useAuthStore } from '@/stores/authStore';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
-  members: CoupleMember[];
+  members: GroupMember[];
 };
 
 const ARRONDISSEMENTS = Array.from({ length: 20 }, (_, i) => i + 1);
@@ -26,8 +26,9 @@ const ROOMS_OPTIONS = [
 ];
 
 export default function FilterSheet({ visible, onClose, members }: Props) {
-  const { searchLists, activeListId, syncFilters, addList, removeList } = useFilterStore();
-  const { coupleId } = useAuthStore();
+  const searchLists = useFilterStore((s) => s.searchLists);
+  const activeListId = useFilterStore((s) => s.activeListId);
+  const groupId = useAuthStore((s) => s.groupId);
 
   const [activeTab, setActiveTab] = useState(activeListId);
   const [local, setLocal] = useState<SearchFilters>(DEFAULT_FILTERS);
@@ -62,7 +63,7 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
   };
 
   const apply = async () => {
-    if (coupleId) await syncFilters(coupleId, local, activeTab);
+    if (groupId) await useFilterStore.getState().syncFilters(groupId, local, activeTab);
     onClose();
   };
 
@@ -76,8 +77,8 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
 
   const confirmAdd = async () => {
     const name = newName.trim();
-    if (!name || !coupleId || newMemberIds.length === 0) return;
-    const id = await addList(coupleId, name, newMemberIds);
+    if (!name || !groupId || newMemberIds.length === 0) return;
+    const id = await useFilterStore.getState().addList(groupId, name, newMemberIds);
     setActiveTab(id);
     setLocal(DEFAULT_FILTERS);
     setAdding(false);
@@ -86,7 +87,7 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
   };
 
   const handleRemove = (id: string) => {
-    if (!coupleId || searchLists.length <= 1) return;
+    if (!groupId || searchLists.length <= 1) return;
     const listName = searchLists.find((l) => l.id === id)?.name ?? 'cette liste';
     Alert.alert(
       'Supprimer la liste',
@@ -97,7 +98,7 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
           text: 'Supprimer',
           style: 'destructive',
           onPress: async () => {
-            const newActiveId = await removeList(coupleId, id);
+            const newActiveId = await useFilterStore.getState().removeList(groupId, id);
             if (activeTab === id) {
               setActiveTab(newActiveId);
               const list = searchLists.find((l) => l.id === newActiveId);
@@ -312,7 +313,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 type MemberChipProps = {
-  member: CoupleMember;
+  member: GroupMember;
   selected: boolean;
   onToggle: (uid: string) => void;
 };
