@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
@@ -155,6 +156,21 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, isTop, i
               <Text style={styles.partnerNoteText} numberOfLines={2}>{partnerNote}</Text>
             </View>
           ) : null}
+
+          {isTop && (
+            <View style={styles.cardActions}>
+              <TouchableOpacity onPress={onSwipeLeft} activeOpacity={0.85}>
+                <LinearGradient colors={['#FF0044', '#FF4D88']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardActionBtn}>
+                  <Ionicons name="close" size={28} color="#fff" />
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onSwipeRight} activeOpacity={0.85}>
+                <LinearGradient colors={['#00E676', '#00C853']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardActionBtn}>
+                  <Ionicons name="heart" size={24} color="#fff" />
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </Animated.View>
     </GestureDetector>
@@ -334,5 +350,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#333',
     flex: 1,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 14,
+  },
+  cardActionBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 5,
   },
 });

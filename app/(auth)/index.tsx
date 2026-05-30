@@ -59,6 +59,7 @@ export default function LoginScreen() {
           id: userCred.user.uid,
           email: userCred.user.email ?? '',
           display_name: userCred.user.displayName ?? userCred.user.email?.split('@')[0] ?? '',
+          photo_url: userCred.user.photoURL ?? null,
           couple_id: null,
           push_token: null,
           notification_prefs: DEFAULT_NOTIFICATION_PREFS,

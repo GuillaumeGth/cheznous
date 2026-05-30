@@ -19,6 +19,7 @@ import SwipeCard from '@/components/SwipeCard';
 import FilterSheet from '@/components/FilterSheet';
 import ListingDetailSheet from '@/components/ListingDetailSheet';
 import NoteModal from '@/components/NoteModal';
+import ConfettiOverlay from '@/components/ConfettiOverlay';
 import { notifyPartnerOfSwipe } from '@/lib/notifications';
 import { CoupleMember, Listing } from '@/types';
 
@@ -32,6 +33,7 @@ export default function SwipeScreen() {
   const { couple, partnerProfile } = useCouple();
   const [filterVisible, setFilterVisible] = useState(false);
   const [matchAnim, setMatchAnim] = useState<string | null>(null);
+  const [matchKey, setMatchKey] = useState(0);
   const [detailListing, setDetailListing] = useState<Listing | null>(null);
   const [noteModalVisible, setNoteModalVisible] = useState(false);
   const [myNote, setMyNote] = useState('');
@@ -121,8 +123,9 @@ export default function SwipeScreen() {
       matched_at: new Date().toISOString(),
       status: 'new',
     });
+    setMatchKey((k) => k + 1);
     setMatchAnim(listing.title);
-    setTimeout(() => setMatchAnim(null), 3000);
+    setTimeout(() => setMatchAnim(null), 3500);
   }, [coupleId]);
 
   const checkForMatch = useCallback(async (listing: Listing) => {
@@ -276,34 +279,21 @@ export default function SwipeScreen() {
         )}
       </View>
 
-      {/* Action buttons */}
+      {/* Undo floating button */}
       {stack.length > 0 && (
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.passBtn} onPress={() => handleSwipe('left')}>
-            <LinearGradient colors={['#FF0044', '#FF4D88']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.btnInner}>
-              <Ionicons name="close" size={30} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.undoBtn}
-            onPress={handleUndo}
-            disabled={!lastSwipe}
-          >
-            <LinearGradient colors={['#4A6CF7', '#A855F7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.btnInnerSm}>
-              <Ionicons name="arrow-undo" size={20} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.likeBtn} onPress={() => handleSwipe('right')}>
-            <LinearGradient colors={['#00E676', '#00C853']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.btnInner}>
-              <Ionicons name="heart" size={28} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[styles.undoBtn, !lastSwipe && styles.undoBtnDisabled]}
+          onPress={handleUndo}
+          disabled={!lastSwipe}
+        >
+          <LinearGradient colors={['#4A6CF7', '#A855F7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.undoBtnInner}>
+            <Ionicons name="arrow-undo" size={20} color="#fff" />
+          </LinearGradient>
+        </TouchableOpacity>
       )}
 
-      {/* Match notification */}
+      {/* Confetti + Match notification */}
+      {matchAnim && <ConfettiOverlay key={matchKey} />}
       {matchAnim && (
         <View style={styles.matchBanner}>
           <View style={styles.matchTitleRow}>
@@ -378,40 +368,25 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   reloadText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 28,
-    paddingVertical: 20,
-  },
-  passBtn: {
-    width: 68, height: 68, borderRadius: 34,
-    shadowColor: '#FF0044', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
-  },
   undoBtn: {
-    width: 52, height: 52, borderRadius: 26,
+    position: 'absolute',
+    left: 16,
+    bottom: 32,
+    width: 48, height: 48, borderRadius: 24,
     shadowColor: '#4A6CF7', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
   },
-  likeBtn: {
-    width: 68, height: 68, borderRadius: 34,
-    shadowColor: '#00E676', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
+  undoBtnDisabled: {
+    opacity: 0.35,
   },
-  btnInner: {
-    width: 68, height: 68, borderRadius: 34,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  btnInnerSm: {
-    width: 52, height: 52, borderRadius: 26,
+  undoBtnInner: {
+    width: 48, height: 48, borderRadius: 24,
     alignItems: 'center', justifyContent: 'center',
   },
   floatingNoteBtn: {
     position: 'absolute',
     right: 16,
-    bottom: 400,
+    bottom: 32,
     width: 54, height: 54, borderRadius: 27,
     shadowColor: '#A855F7', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
