@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "swipemyflat"
+  },
   "targets": {},
   "etags": {}
 }
