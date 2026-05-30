@@ -22,7 +22,7 @@ type FilterState = {
 };
 
 const pushToFirestore = (groupId: string, lists: SearchList[], activeId: string) =>
-  updateDoc(doc(db, 'couples', groupId), {
+  updateDoc(doc(db, 'groups', groupId), {
     search_lists: lists,
     active_search_list_id: activeId,
   });
@@ -77,6 +77,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     const active = searchLists.find((l) => l.id === id);
     if (!active) return;
     set({ activeListId: id, filters: active.filters });
-    await updateDoc(doc(db, 'couples', groupId), { active_search_list_id: id });
+    await updateDoc(doc(db, 'groups', groupId), { active_search_list_id: id });
   },
 }));

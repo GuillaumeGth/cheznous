@@ -18,7 +18,7 @@ export function useGroup() {
   useEffect(() => {
     if (!groupId) return;
 
-    const unsub = onSnapshot(doc(db, 'couples', groupId), (snap) => {
+    const unsub = onSnapshot(doc(db, 'groups', groupId), (snap) => {
       if (!snap.exists()) return;
       const data = { id: snap.id, ...snap.data() } as Group;
       const normalized = { ...data, member_ids: deriveMemberIds(data) };

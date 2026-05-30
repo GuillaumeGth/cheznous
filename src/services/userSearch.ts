@@ -65,7 +65,7 @@ export async function acceptGroupInvitation(
 ): Promise<void> {
   await Promise.all([
     updateDoc(doc(db, 'group_invitations', invitationId), { status: 'accepted' }),
-    updateDoc(doc(db, 'couples', groupId), { member_ids: arrayUnion(inviteeId) }),
+    updateDoc(doc(db, 'groups', groupId), { member_ids: arrayUnion(inviteeId) }),
     updateDoc(doc(db, 'users', inviteeId), { couple_id: groupId }),
   ]);
 }

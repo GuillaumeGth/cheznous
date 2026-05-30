@@ -51,7 +51,7 @@ export type GroupMember = {
   displayName: string;
 };
 
-// Firestore collection: `couples` (nom historique conservé pour éviter une migration)
+// Firestore collection: `groups`
 export type Group = {
   id: string;
   user1_id: string;       // legacy

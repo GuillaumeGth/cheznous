@@ -55,7 +55,7 @@ export async function getMemberTokens(
   groupId: string,
   myUserId: string,
 ): Promise<string[]> {
-  const groupSnap = await getDoc(doc(db, 'couples', groupId));
+  const groupSnap = await getDoc(doc(db, 'groups', groupId));
   if (!groupSnap.exists()) return [];
 
   const data = groupSnap.data();

@@ -31,7 +31,7 @@ export default function GroupScreen() {
     setLoading(true);
     try {
       const code = generateCode();
-      const groupRef = doc(collection(db, 'couples'));
+      const groupRef = doc(collection(db, 'groups'));
       await setDoc(groupRef, {
         id: groupRef.id,
         user1_id: firebaseUser.uid,
@@ -56,7 +56,7 @@ export default function GroupScreen() {
     if (!firebaseUser || !inviteCode.trim()) return;
     setLoading(true);
     try {
-      const q = query(collection(db, 'couples'), where('invite_code', '==', inviteCode.trim().toUpperCase()));
+      const q = query(collection(db, 'groups'), where('invite_code', '==', inviteCode.trim().toUpperCase()));
       const snap = await getDocs(q);
       if (snap.empty) {
         Alert.alert('Code invalide', 'Aucun groupe trouvé avec ce code');
