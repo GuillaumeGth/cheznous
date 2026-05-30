@@ -17,6 +17,34 @@ import { DEFAULT_NOTIFICATION_PREFS } from '@/types';
 WebBrowser.maybeCompleteAuthSession();
 
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
+
+// Isolated so the hook is never called without the required client IDs
+function GoogleButton({ onCredential, disabled }: { onCredential: (token: string) => void; disabled: boolean }) {
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      onCredential(response.params.id_token);
+    }
+  }, [response, onCredential]);
+
+  return (
+    <TouchableOpacity
+      style={styles.googleBtn}
+      onPress={() => promptAsync()}
+      disabled={!request || disabled}
+    >
+      <Text style={styles.googleIcon}>G</Text>
+      <Text style={styles.googleBtnText}>Continuer avec Google</Text>
+    </TouchableOpacity>
+  );
+}
+
+const showGoogleBtn = Platform.OS !== 'android' || !!GOOGLE_ANDROID_CLIENT_ID;
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -25,17 +53,6 @@ export default function LoginScreen() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-  });
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const idToken = response.params.id_token;
-      handleGoogleCredential(idToken);
-    }
-  }, [response]);
 
   const handleGoogleCredential = async (idToken: string) => {
     setError('');
@@ -163,20 +180,16 @@ export default function LoginScreen() {
             }
           </TouchableOpacity>
 
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>ou</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={styles.googleBtn}
-            onPress={() => promptAsync()}
-            disabled={!request || loading}
-          >
-            <Text style={styles.googleIcon}>G</Text>
-            <Text style={styles.googleBtnText}>Continuer avec Google</Text>
-          </TouchableOpacity>
+          {showGoogleBtn && (
+            <>
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>ou</Text>
+                <View style={styles.dividerLine} />
+              </View>
+              <GoogleButton onCredential={handleGoogleCredential} disabled={loading} />
+            </>
+          )}
 
           <TouchableOpacity onPress={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}>
             <Text style={styles.switchText}>
