@@ -1,10 +1,13 @@
-jest.mock('@/lib/firebase', () => ({ db: {} }));
+jest.mock('@/lib/firebase', () => ({ __esModule: true, db: {} }));
+jest.mock('@/lib/errorReporting', () => ({ __esModule: true, logError: jest.fn() }));
 jest.mock('firebase/firestore', () => ({
+  __esModule: true,
   doc: jest.fn(() => ({})),
   updateDoc: jest.fn().mockResolvedValue(undefined),
   getDoc: jest.fn(),
 }));
 jest.mock('expo-notifications', () => ({
+  __esModule: true,
   setNotificationHandler: jest.fn(),
   scheduleNotificationAsync: jest.fn().mockResolvedValue(undefined),
   getPermissionsAsync: jest.fn(),
@@ -13,12 +16,12 @@ jest.mock('expo-notifications', () => ({
   setNotificationChannelAsync: jest.fn(),
   AndroidImportance: { MAX: 5 },
 }));
-jest.mock('expo-device', () => ({ isDevice: false }));
+jest.mock('expo-device', () => ({ __esModule: true, isDevice: false }));
 jest.mock('expo-constants', () => ({
+  __esModule: true,
   default: { expoConfig: { extra: { eas: { projectId: 'test-project' } } } },
-  expoConfig: { extra: { eas: { projectId: 'test-project' } } },
 }));
-jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+jest.mock('react-native', () => ({ __esModule: true, Platform: { OS: 'ios' } }));
 
 import { getDoc } from 'firebase/firestore';
 import { scheduleNotificationAsync } from 'expo-notifications';

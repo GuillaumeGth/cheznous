@@ -2,18 +2,24 @@ import { Platform } from 'react-native';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Listing } from '@/types';
+import { logError } from '@/lib/errorReporting';
 
-// Lazy-load expo-notifications so a missing FCM setup never crashes at import time
-async function getNotifications() {
+type ExpoNotifications = typeof import('expo-notifications');
+
+// Lazy-require expo-notifications so a broken native module never crashes at
+// import time. require() (not dynamic import) keeps this lazy AND lets Jest's
+// module mocks intercept it.
+function getNotifications(): ExpoNotifications | null {
   try {
-    return await import('expo-notifications');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require('expo-notifications') as ExpoNotifications;
   } catch {
     return null;
   }
 }
 
 export async function setupNotificationHandler(): Promise<void> {
-  const N = await getNotifications();
+  const N = getNotifications();
   if (!N) return;
   try {
     N.setNotificationHandler({
@@ -26,17 +32,26 @@ export async function setupNotificationHandler(): Promise<void> {
       }),
     });
   } catch (e) {
-    console.warn('[Notifications] setNotificationHandler failed:', e);
+    logError(e, 'setupNotificationHandler');
   }
 }
 
 export async function registerPushToken(userId: string): Promise<string | null> {
-  const N = await getNotifications();
+  const N = getNotifications();
   if (!N) return null;
   try {
-    const Device = await import('expo-device');
-    const { default: Constants } = await import('expo-constants');
-    if (!Device.default.isDevice) return null;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Device = require('expo-device') as { isDevice?: boolean; default?: { isDevice?: boolean } };
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ConstantsMod = require('expo-constants') as {
+      default?: { expoConfig?: any; easConfig?: any };
+      expoConfig?: any;
+      easConfig?: any;
+    };
+    const Constants = ConstantsMod.default ?? ConstantsMod;
+    // expo-device exposes `isDevice` as a named export (with a default fallback)
+    const isPhysicalDevice = Device.isDevice ?? Device.default?.isDevice ?? false;
+    if (!isPhysicalDevice) return null;
 
     const { status: existing } = await N.getPermissionsAsync();
     let finalStatus = existing;
@@ -58,14 +73,20 @@ export async function registerPushToken(userId: string): Promise<string | null> 
       Constants.expoConfig?.extra?.eas?.projectId ??
       Constants.easConfig?.projectId;
 
-    const tokenData = await N.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
-    );
-    const token = tokenData.data;
+    let token: string;
+    if (projectId) {
+      // Expo push token — relayed to FCM via Expo's push service
+      const tokenData = await N.getExpoPushTokenAsync({ projectId });
+      token = tokenData.data;
+    } else {
+      // No EAS project configured — fall back to the raw FCM device token
+      const tokenData = await N.getDevicePushTokenAsync();
+      token = tokenData.data as string;
+    }
     await updateDoc(doc(db, 'users', userId), { push_token: token });
     return token;
   } catch (e) {
-    console.warn('[Notifications] registerPushToken failed:', e);
+    logError(e, 'registerPushToken');
     return null;
   }
 }
@@ -145,12 +166,12 @@ export async function notifyGroupInvitation(inviteeId: string, inviterName: stri
       { type: 'group_invitation' },
     );
   } catch (e) {
-    console.warn('[Notifications] notifyGroupInvitation failed:', e);
+    logError(e, 'notifyGroupInvitation');
   }
 }
 
 export async function scheduleNewListingsNotification(count: number): Promise<void> {
-  const N = await getNotifications();
+  const N = getNotifications();
   if (!N) return;
   try {
     await N.scheduleNotificationAsync({

@@ -7,6 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true
     },
@@ -21,7 +22,8 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.guillaumed.gth.swipeMyFlat"
+      "googleServicesFile": "./google-services.json",
+      "package": "com.cheznous.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -45,6 +47,13 @@
           "photosPermission": "Chez Nous a besoin d'accéder à ta galerie pour changer ta photo de profil."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6ddbb7d2-efa0-44d0-91e5-abf0c7851e38"
+      }
+    },
+    "owner": "guillaumed.gth"
   }
 }

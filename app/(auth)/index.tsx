@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types';
+import { logError } from '@/lib/errorReporting';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -54,7 +55,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleGoogleCredential = async (idToken: string) => {
+  const handleGoogleCredential = useCallback(async (idToken: string) => {
     setError('');
     setLoading(true);
     try {
@@ -85,12 +86,12 @@ export default function LoginScreen() {
         router.replace('/(auth)/invite');
       }
     } catch (e: any) {
-      console.error('[Auth] Google error:', e.code, e.message);
+      logError(e, 'auth-google-credential');
       setError(friendlyError(e.code));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const submit = async () => {
     setError('');
@@ -125,7 +126,7 @@ export default function LoginScreen() {
         router.replace('/(auth)/invite');
       }
     } catch (e: any) {
-      console.error('[Auth] error:', e.code, e.message, e);
+      logError(e, `auth-${mode}`);
       setError(friendlyError(e.code) + (e.code ? ` [${e.code}]` : ''));
     } finally {
       setLoading(false);

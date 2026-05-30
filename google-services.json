@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "967416784277",
+    "project_id": "swipemyflat",
+    "storage_bucket": "swipemyflat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:967416784277:android:79989ca1c0998c171d029c",
+        "android_client_info": {
+          "package_name": "com.cheznous.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "967416784277-3r0bul6g2ku196m0stj7m61o7ls9oihl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUYaAi1zpTISTCEwqtg0JeP78Wad_5eu0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "967416784277-3r0bul6g2ku196m0stj7m61o7ls9oihl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
