@@ -1,7 +1,12 @@
 import { Alert } from 'react-native';
-import { ErrorUtils } from 'react-native';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
+
+// ErrorUtils is a RN runtime global, not a named export
+declare const ErrorUtils: {
+  getGlobalHandler: () => (error: Error, isFatal?: boolean) => void;
+  setGlobalHandler: (handler: (error: Error, isFatal?: boolean) => void) => void;
+};
 
 async function persistCrash(error: Error, isFatal: boolean, context?: string) {
   try {
