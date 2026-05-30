@@ -6,14 +6,24 @@ import { logError } from '@/lib/errorReporting';
 
 type ExpoNotifications = typeof import('expo-notifications');
 
-// Lazy-require expo-notifications so a broken native module never crashes at
-// import time. require() (not dynamic import) keeps this lazy AND lets Jest's
-// module mocks intercept it.
+// Lazy-require expo-notifications instead of a top-level import. Rationale:
+// expo-notifications evaluates native code at module-load time and THROWS if the
+// push stack isn't set up (the "removed from Expo Go" / missing-FCM guard). A
+// top-level import makes that throw a startup crash that nothing can catch.
+// Loading it lazily means a load failure degrades to "notifications off" instead
+// of killing the app — but we LOG the failure so it's never hidden. require()
+// (not dynamic import) keeps this lazy AND lets Jest's module mocks intercept it.
+let notifModuleLoadFailed = false;
 function getNotifications(): ExpoNotifications | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('expo-notifications') as ExpoNotifications;
-  } catch {
+  } catch (e) {
+    // Log once — a recurring failure shouldn't spam the crash log.
+    if (!notifModuleLoadFailed) {
+      notifModuleLoadFailed = true;
+      logError(e, 'expo-notifications failed to load (push stack misconfigured?)');
+    }
     return null;
   }
 }

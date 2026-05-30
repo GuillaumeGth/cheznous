@@ -22,7 +22,7 @@ import { styles } from '@/styles/swipeScreen.styles';
 
 const GRADIENT_START = { x: 0, y: 0 } as const;
 const GRADIENT_END = { x: 1, y: 1 } as const;
-const FILTER_GRADIENT = ['#1A1A3E', '#2D2B55'] as const;
+const FILTER_GRADIENT = ['#F0F4FF', '#E8EDFF'] as const;
 const ACTION_GRADIENT = ['#4A6CF7', '#A855F7'] as const;
 const NOTE_GRADIENT = ['#5B4FE9', '#A855F7'] as const;
 const SAFE_EDGES = ['top'] as const;
@@ -130,7 +130,7 @@ export default function SwipeScreen() {
         </View>
         <TouchableOpacity onPress={handleFilterPress}>
           <LinearGradient colors={FILTER_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.filterBtn}>
-            <Ionicons name="options-outline" size={16} color="#A78BFA" />
+            <Ionicons name="options-outline" size={16} color="#4A6CF7" />
             <Text style={styles.filterLabel} numberOfLines={1}>
               {activeListName ?? 'Filtres'}
             </Text>
@@ -165,6 +165,8 @@ export default function SwipeScreen() {
               index={idx}
               onSwipeLeft={handleSwipeLeft}
               onSwipeRight={handleSwipeRight}
+              onUndo={isTop ? handleUndo : undefined}
+              canUndo={isTop ? !!lastSwipeRef.current : undefined}
               onInfoPress={isTop ? handleInfoPress : undefined}
               partnerNote={isTop ? notes.partner : null}
               partnerName={isTop ? firstColocName : null}
@@ -172,19 +174,6 @@ export default function SwipeScreen() {
           ))
         )}
       </View>
-
-      {/* Undo floating button */}
-      {stack.length > 0 && (
-        <TouchableOpacity
-          style={[styles.undoBtn, !lastSwipeRef.current && styles.undoBtnDisabled]}
-          onPress={handleUndo}
-          disabled={!lastSwipeRef.current}
-        >
-          <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.undoBtnInner}>
-            <Ionicons name="arrow-undo" size={20} color="#fff" />
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
 
       {/* Confetti + Match notification */}
       {matchState && <ConfettiOverlay key={matchState.id} />}
@@ -199,7 +188,7 @@ export default function SwipeScreen() {
         </View>
       )}
 
-      {/* Floating note button */}
+      {/* Note button — right edge, vertically centred in cards area */}
       {stack.length > 0 && (
         <TouchableOpacity style={styles.floatingNoteBtn} onPress={handleNotePress}>
           <LinearGradient colors={NOTE_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.floatingNoteInner}>

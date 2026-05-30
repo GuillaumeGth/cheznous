@@ -15,13 +15,15 @@ import { Listing } from '@/types';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CARD_W = SCREEN_W - 32;
-const CARD_H = SCREEN_H * 0.65;
+const CARD_H = SCREEN_H * 0.72;
 const SWIPE_THRESHOLD = 100;
 
 type Props = {
   listing: Listing;
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
+  onUndo?: () => void;
+  canUndo?: boolean;
   isTop: boolean;
   index: number;
   onInfoPress?: () => void;
@@ -29,7 +31,7 @@ type Props = {
   partnerName?: string | null;
 };
 
-export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, isTop, index, onInfoPress, partnerNote, partnerName }: Props) {
+export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, canUndo, isTop, index, onInfoPress, partnerNote, partnerName }: Props) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const [imageIndex, setImageIndex] = React.useState(0);
@@ -126,13 +128,23 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, isTop, i
         {/* Info */}
         <View style={styles.info}>
           <View style={styles.priceRow}>
-            <Text style={styles.price}>{price.toLocaleString('fr-FR')} €/mois</Text>
-            {charges > 0 && (
-              <Text style={styles.charges}>+{charges} € charges</Text>
+            <View>
+              <View style={styles.priceWithCharges}>
+                <Text style={styles.price}>{price.toLocaleString('fr-FR')} €/mois</Text>
+                {charges > 0 && (
+                  <Text style={styles.charges}>+{charges} € charges</Text>
+                )}
+              </View>
+              <Text style={styles.title} numberOfLines={1}>{listing.title}</Text>
+              <Text style={styles.address} numberOfLines={1}>{listing.address}</Text>
+            </View>
+            {onInfoPress && (
+              <TouchableOpacity style={styles.detailsBtn} onPress={onInfoPress}>
+                <Ionicons name="information-circle-outline" size={14} color="#4A6CF7" />
+                <Text style={styles.detailsBtnText}>Voir les{'\n'}détails</Text>
+              </TouchableOpacity>
             )}
           </View>
-          <Text style={styles.title} numberOfLines={1}>{listing.title}</Text>
-          <Text style={styles.address} numberOfLines={1}>{listing.address}</Text>
 
           <View style={styles.tags}>
             <Tag iconName="resize-outline" label={`${surface} m²`} />
@@ -141,13 +153,6 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, isTop, i
             {has_elevator && <Tag iconName="arrow-up-circle-outline" label="Ascenseur" />}
             {has_balcony && <Tag iconName="leaf-outline" label="Balcon" />}
           </View>
-
-          {onInfoPress && (
-            <TouchableOpacity style={styles.detailsBtn} onPress={onInfoPress}>
-              <Ionicons name="information-circle-outline" size={14} color="#4A6CF7" />
-              <Text style={styles.detailsBtnText}>Voir les détails</Text>
-            </TouchableOpacity>
-          )}
 
           {partnerNote ? (
             <View style={styles.partnerNote}>
@@ -159,6 +164,11 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, isTop, i
 
           {isTop && (
             <View style={styles.cardActions}>
+              <TouchableOpacity onPress={onUndo} disabled={!canUndo} activeOpacity={0.85} style={!canUndo && styles.undoDisabled}>
+                <LinearGradient colors={['#7C3AED', '#A855F7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardUndoBtn}>
+                  <Ionicons name="arrow-undo" size={20} color="#fff" />
+                </LinearGradient>
+              </TouchableOpacity>
               <TouchableOpacity onPress={onSwipeLeft} activeOpacity={0.85}>
                 <LinearGradient colors={['#FF0044', '#FF4D88']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardActionBtn}>
                   <Ionicons name="close" size={28} color="#fff" />
@@ -275,6 +285,11 @@ const styles = StyleSheet.create({
   },
   priceRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  priceWithCharges: {
+    flexDirection: 'row',
     alignItems: 'baseline',
     gap: 8,
   },
@@ -321,9 +336,8 @@ const styles = StyleSheet.create({
   detailsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-end',
     gap: 4,
-    marginTop: 8,
+    paddingLeft: 8,
   },
   detailsBtnText: {
     fontSize: 12,
@@ -354,6 +368,7 @@ const styles = StyleSheet.create({
   cardActions: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    alignItems: 'center',
     marginTop: 14,
   },
   cardActionBtn: {
@@ -367,5 +382,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 6,
     elevation: 5,
+  },
+  cardUndoBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  undoDisabled: {
+    opacity: 0.35,
   },
 });
