@@ -162,26 +162,27 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, 
             </View>
           ) : null}
 
-          {isTop && (
-            <View style={styles.cardActions}>
-              <TouchableOpacity onPress={onUndo} disabled={!canUndo} activeOpacity={0.85} style={!canUndo && styles.undoDisabled}>
-                <LinearGradient colors={['#7C3AED', '#A855F7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardUndoBtn}>
-                  <Ionicons name="arrow-undo" size={20} color="#fff" />
-                </LinearGradient>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={onSwipeLeft} activeOpacity={0.85}>
-                <LinearGradient colors={['#FF0044', '#FF4D88']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardActionBtn}>
-                  <Ionicons name="close" size={28} color="#fff" />
-                </LinearGradient>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={onSwipeRight} activeOpacity={0.85}>
-                <LinearGradient colors={['#00E676', '#00C853']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardActionBtn}>
-                  <Ionicons name="heart" size={24} color="#fff" />
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
+
+        {isTop && (
+          <View style={styles.cardActions}>
+            <TouchableOpacity onPress={onUndo} disabled={!canUndo} activeOpacity={0.85} style={!canUndo ? styles.undoDisabled : undefined}>
+              <LinearGradient colors={['#7C3AED', '#A855F7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardUndoBtn}>
+                <Ionicons name="arrow-undo" size={20} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onSwipeLeft} activeOpacity={0.85}>
+              <LinearGradient colors={['#FF0044', '#FF4D88']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardActionBtn}>
+                <Ionicons name="close" size={28} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onSwipeRight} activeOpacity={0.85}>
+              <LinearGradient colors={['#00E676', '#00C853']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardActionBtn}>
+                <Ionicons name="heart" size={24} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
       </Animated.View>
     </GestureDetector>
   );
@@ -369,7 +370,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    marginTop: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 10,
+    backgroundColor: '#fff',
   },
   cardActionBtn: {
     width: 60,

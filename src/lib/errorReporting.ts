@@ -153,11 +153,20 @@ export function setupErrorReporting(): void {
 /**
  * Manually log a non-fatal error. Never throws.
  */
-export function logError(error: unknown, context?: string): void {
+export function logError(
+  error: unknown,
+  context?: string,
+  options?: { silent?: boolean },
+): void {
   try {
     const e = toError(error);
-    // eslint-disable-next-line no-console
-    console.error(`[ERROR][${context ?? 'manual'}]`, e.message);
+    if (!options?.silent) {
+      // console.error surfaces in the dev LogBox. Skip it for expected, handled
+      // conditions (e.g. an optional native module being unavailable) — those are
+      // still persisted to Firestore, just not shown as a red box in development.
+      // eslint-disable-next-line no-console
+      console.error(`[ERROR][${context ?? 'manual'}]`, e.message);
+    }
     void persistCrash(buildReport(e, false, context));
   } catch {
     /* swallow */

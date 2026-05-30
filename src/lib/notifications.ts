@@ -19,10 +19,12 @@ function getNotifications(): ExpoNotifications | null {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('expo-notifications') as ExpoNotifications;
   } catch (e) {
-    // Log once — a recurring failure shouldn't spam the crash log.
+    // Log once, silently — this is an expected, handled condition (e.g. running
+    // in Expo Go, or the native module unavailable). Persisted to Firestore for
+    // visibility, but not surfaced as a dev LogBox red screen.
     if (!notifModuleLoadFailed) {
       notifModuleLoadFailed = true;
-      logError(e, 'expo-notifications failed to load (push stack misconfigured?)');
+      logError(e, 'expo-notifications unavailable in this runtime', { silent: true });
     }
     return null;
   }
