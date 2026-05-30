@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read/write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /couples/{coupleId} {
+      // Members can read/write their own couple
+      allow read, write: if request.auth != null && (
+        resource.data.user1_id == request.auth.uid ||
+        resource.data.user2_id == request.auth.uid
+      );
+      // Any authenticated user can create a new couple
+      allow create: if request.auth != null;
+      // Any authenticated user can read an open couple (needed for invite-code lookup)
+      allow read: if request.auth != null && resource.data.user2_id == null;
+      // Any authenticated user can join an open couple by setting themselves as user2
+      allow update: if request.auth != null
+        && resource.data.user2_id == null
+        && request.resource.data.user2_id == request.auth.uid
+        && request.resource.data.user1_id == resource.data.user1_id
+        && request.resource.data.invite_code == resource.data.invite_code;
+    }
+
+    // Authenticated users can read/write listings (cached by clients)
+    match /listings/{listingId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Users can read and write their own swipes; all authenticated users can read
+    match /swipes/{swipeId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.resource.data.user_id == request.auth.uid;
+    }
+
+    // Authenticated users can read/write matches
+    match /matches/{matchId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
