@@ -11,7 +11,9 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
+  headerTitles: { flex: 1, marginRight: 12 },
   appName: { fontSize: 24, fontWeight: '800', color: '#1A1A2E' },
+  coverBanner: { width: '100%', height: 120 },
   partnerStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   partnerStatus: { fontSize: 12, color: '#888' },
   filterBtn: {

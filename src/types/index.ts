@@ -44,6 +44,8 @@ export type SearchList = {
   filters: SearchFilters;
   // undefined/vide = tous les colocs ; [uid] = solo ; [uid1, uid2] = sous-groupe
   member_ids?: string[];
+  // URL Firebase Storage d'une photo de couverture (optionnelle)
+  cover_photo_url?: string | null;
 };
 
 export type GroupMember = {
@@ -54,6 +56,7 @@ export type GroupMember = {
 // Firestore collection: `groups`
 export type Group = {
   id: string;
+  name?: string;          // titre du groupe (éditable)
   user1_id: string;       // legacy
   user2_id: string | null; // legacy
   member_ids: string[];   // liste authoritative de tous les colocs
@@ -81,9 +84,17 @@ export type UserSearchResult = {
   photo_url: string | null;
 };
 
+// Firestore collection: `follows`, doc id `{follower_id}_{following_id}`
+export type Follow = {
+  follower_id: string;
+  following_id: string;
+  created_at: string;
+};
+
 export type Match = {
   id: string;
   couple_id: string;   // Firestore field name (= groupId)
+  search_list_id?: string; // critère de recherche dans lequel le match a eu lieu
   listing_id: string;
   listing: Listing;
   matched_at: string;
@@ -112,6 +123,7 @@ export type UserProfile = {
   id: string;
   email: string;
   display_name: string;
+  display_name_lower?: string; // minuscules, pour la recherche insensible à la casse
   couple_id: string | null;  // Firestore field name (= groupId)
   push_token: string | null;
   photo_url: string | null;

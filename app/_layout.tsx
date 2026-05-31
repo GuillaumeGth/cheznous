@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { registerPushToken, setupNotificationHandler } from '@/lib/notifications';
@@ -32,6 +32,13 @@ export default function RootLayout() {
           }
           if (profile.push_token === undefined) {
             profile.push_token = null;
+          }
+          // Backfill display_name_lower (recherche insensible à la casse)
+          if (profile.display_name_lower === undefined && profile.display_name) {
+            profile.display_name_lower = profile.display_name.toLowerCase();
+            updateDoc(doc(db, 'users', user.uid), {
+              display_name_lower: profile.display_name_lower,
+            }).catch(() => {});
           }
           setProfile(profile);
           setGroupId(profile.couple_id ?? null);

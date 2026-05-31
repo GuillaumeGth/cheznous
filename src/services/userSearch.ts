@@ -12,13 +12,16 @@ export async function searchUsers(
 ): Promise<UserSearchResult[]> {
   const normalized = term.trim();
   if (normalized.length < 2) return [];
+  const lower = normalized.toLowerCase();
 
+  // Recherche insensible à la casse : email exact (les emails Firebase sont
+  // stockés en minuscules) + display_name par préfixe sur le champ normalisé.
   const [byEmail, byName] = await Promise.all([
-    getDocs(query(collection(db, 'users'), where('email', '==', normalized))),
+    getDocs(query(collection(db, 'users'), where('email', '==', lower))),
     getDocs(query(
       collection(db, 'users'),
-      where('display_name', '>=', normalized),
-      where('display_name', '<=', normalized + ''),
+      where('display_name_lower', '>=', lower),
+      where('display_name_lower', '<=', lower + ''),
     )),
   ]);
 

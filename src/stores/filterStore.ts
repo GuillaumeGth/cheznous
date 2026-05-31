@@ -20,6 +20,7 @@ type FilterState = {
   renameList: (groupId: string, id: string, name: string) => Promise<void>;
   removeList: (groupId: string, id: string) => Promise<string>;
   setActiveList: (groupId: string, id: string) => Promise<void>;
+  setListCover: (groupId: string, id: string, coverUrl: string | null) => Promise<void>;
 };
 
 const pushToFirestore = (groupId: string, lists: SearchList[], activeId: string) =>
@@ -37,7 +38,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     const active = lists.find((l) => l.id === activeId) ?? lists[0];
     set({
       searchLists: lists,
-      activeListId: active?.id ?? DEFAULT_LIST.id,
+      activeListId: active?.id ?? '',
       filters: active?.filters ?? DEFAULT_FILTERS,
     });
   },
@@ -86,5 +87,14 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     if (!active) return;
     set({ activeListId: id, filters: active.filters });
     await updateDoc(doc(db, 'groups', groupId), { active_search_list_id: id });
+  },
+
+  setListCover: async (groupId, id, coverUrl) => {
+    const { searchLists, activeListId } = get();
+    const updated = searchLists.map((l) =>
+      l.id === id ? { ...l, cover_photo_url: coverUrl } : l,
+    );
+    set({ searchLists: updated });
+    await pushToFirestore(groupId, updated, activeListId);
   },
 }));

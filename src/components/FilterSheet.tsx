@@ -1,18 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, Pressable,
-  ScrollView, Platform, TextInput, Alert,
+  ScrollView, Platform, TextInput, Alert, Image, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { GroupMember, SearchFilters, DEFAULT_FILTERS } from '@/types';
 import { useFilterStore } from '@/stores/filterStore';
 import { useAuthStore } from '@/stores/authStore';
+import { pickAndUploadImage } from '@/lib/uploadImage';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
   members: GroupMember[];
+  /** Ouvre directement le formulaire de création de recherche. */
+  initialAdding?: boolean;
 };
 
 const ARRONDISSEMENTS = Array.from({ length: 20 }, (_, i) => i + 1);
@@ -26,7 +29,7 @@ const ROOMS_OPTIONS = [
   { label: '4+ p.', value: 4 },
 ];
 
-export default function FilterSheet({ visible, onClose, members }: Props) {
+export default function FilterSheet({ visible, onClose, members, initialAdding }: Props) {
   const searchLists = useFilterStore((s) => s.searchLists);
   const activeListId = useFilterStore((s) => s.activeListId);
   const groupId = useAuthStore((s) => s.groupId);
@@ -39,13 +42,19 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
   const [newMemberIds, setNewMemberIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [coverBusy, setCoverBusy] = useState(false);
+
+  const activeCover = useMemo(
+    () => searchLists.find((l) => l.id === activeTab)?.cover_photo_url ?? null,
+    [searchLists, activeTab],
+  );
 
   useEffect(() => {
     if (visible) {
       setActiveTab(activeListId);
       const list = searchLists.find((l) => l.id === activeListId);
       setLocal(list?.filters ?? DEFAULT_FILTERS);
-      setAdding(false);
+      setAdding(initialAdding ?? searchLists.length === 0);
       setNewName('');
       setNewMemberIds(members.map((m) => m.uid));
       setEditingId(null);
@@ -74,6 +83,28 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
   };
 
   const reset = () => setLocal(DEFAULT_FILTERS);
+
+  const changeCover = useCallback(async () => {
+    if (!groupId || coverBusy) return;
+    setCoverBusy(true);
+    try {
+      const res = await pickAndUploadImage(`search_covers/${groupId}_${activeTab}.jpg`, [16, 9]);
+      if (res.status === 'success') {
+        await useFilterStore.getState().setListCover(groupId, activeTab, res.url);
+      } else if (res.status === 'no-permission') {
+        Alert.alert('Accès refusé', "Autorise l'accès à ta galerie dans les réglages.");
+      } else if (res.status === 'error') {
+        Alert.alert('Erreur', "Impossible de changer la photo. Réessaie.");
+      }
+    } finally {
+      setCoverBusy(false);
+    }
+  }, [groupId, activeTab, coverBusy]);
+
+  const removeCover = useCallback(async () => {
+    if (!groupId) return;
+    await useFilterStore.getState().setListCover(groupId, activeTab, null);
+  }, [groupId, activeTab]);
 
   const toggleMember = useCallback((uid: string) => {
     setNewMemberIds((prev) =>
@@ -266,6 +297,30 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
         </View>
 
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* Photo de couverture */}
+          <View style={styles.coverSection}>
+            <Pressable style={styles.coverBox} onPress={changeCover} disabled={coverBusy}>
+              {activeCover ? (
+                <Image source={{ uri: activeCover }} style={styles.coverImage} />
+              ) : (
+                <View style={styles.coverPlaceholder}>
+                  <Ionicons name="image-outline" size={28} color="#4A6CF7" />
+                  <Text style={styles.coverPlaceholderText}>Ajouter une photo de couverture</Text>
+                </View>
+              )}
+              <View style={styles.coverEditBadge}>
+                {coverBusy
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Ionicons name="camera" size={14} color="#fff" />}
+              </View>
+            </Pressable>
+            {activeCover && !coverBusy && (
+              <TouchableOpacity onPress={removeCover} style={styles.coverRemoveBtn}>
+                <Text style={styles.coverRemoveText}>Retirer la photo</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Arrondissements */}
           <Section title="Arrondissements">
             <Text style={styles.hint}>
@@ -485,6 +540,26 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   scroll: { flex: 1, padding: 16 },
+  coverSection: { marginBottom: 12 },
+  coverBox: {
+    height: 150,
+    borderRadius: 16,
+    backgroundColor: '#EEF1FF',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coverImage: { width: '100%', height: '100%' },
+  coverPlaceholder: { alignItems: 'center', gap: 8 },
+  coverPlaceholderText: { fontSize: 13, color: '#4A6CF7', fontWeight: '600' },
+  coverEditBadge: {
+    position: 'absolute', bottom: 10, right: 10,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(26,26,46,0.85)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  coverRemoveBtn: { alignSelf: 'center', marginTop: 8 },
+  coverRemoveText: { fontSize: 13, color: '#FF4444', fontWeight: '600' },
   section: {
     backgroundColor: '#fff',
     borderRadius: 16,

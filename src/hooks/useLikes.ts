@@ -39,7 +39,7 @@ export function useLikes() {
           rightSwipes.map(async (swipe) => {
             const listingSnap = await getDoc(doc(db, 'listings', swipe.listing_id));
             return {
-              id: `${swipe.user_id}_${swipe.listing_id}`,
+              id: `${swipe.user_id}_${swipe.search_list_id ?? 'default'}_${swipe.listing_id}`,
               listing_id: swipe.listing_id as string,
               listing: listingSnap.exists() ? (listingSnap.data() as Listing) : null,
               liked_at: swipe.created_at as string,

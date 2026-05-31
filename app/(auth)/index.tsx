@@ -75,8 +75,9 @@ export default function LoginScreen() {
       } else {
         await setDoc(doc(db, 'users', userCred.user.uid), {
           id: userCred.user.uid,
-          email: userCred.user.email ?? '',
+          email: (userCred.user.email ?? '').toLowerCase(),
           display_name: userCred.user.displayName ?? userCred.user.email?.split('@')[0] ?? '',
+          display_name_lower: (userCred.user.displayName ?? userCred.user.email?.split('@')[0] ?? '').toLowerCase(),
           photo_url: userCred.user.photoURL ?? null,
           couple_id: null,
           push_token: null,
@@ -105,8 +106,9 @@ export default function LoginScreen() {
         userCred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await setDoc(doc(db, 'users', userCred.user.uid), {
           id: userCred.user.uid,
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           display_name: displayName.trim() || email.split('@')[0],
+          display_name_lower: (displayName.trim() || email.split('@')[0]).toLowerCase(),
           couple_id: null,
           push_token: null,
           notification_prefs: DEFAULT_NOTIFICATION_PREFS,

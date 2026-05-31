@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, ActivityIndicator,
+  View, Text, TouchableOpacity, ActivityIndicator, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,7 +28,7 @@ const NOTE_GRADIENT = ['#5B4FE9', '#A855F7'] as const;
 const SAFE_EDGES = ['top'] as const;
 
 type ActiveModal =
-  | { type: 'filter' }
+  | { type: 'filter'; adding?: boolean }
   | { type: 'note' }
   | { type: 'detail'; listing: Listing };
 
@@ -37,6 +37,7 @@ export default function SwipeScreen() {
   const displayName = useAuthStore((s) => s.profile?.display_name);
   const searchLists = useFilterStore((s) => s.searchLists);
   const activeListId = useFilterStore((s) => s.activeListId);
+  const hasSearch = searchLists.length > 0;
 
   const { stack, isLoading, loadMore, refresh, pop, pushBack, filtersKey } = useListings();
   const { group, memberProfiles } = useGroup();
@@ -60,22 +61,24 @@ export default function SwipeScreen() {
 
   useNewListingsNotify();
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { if (hasSearch) refresh(); }, [hasSearch, refresh]);
 
   const filterMountedRef = useRef(false);
   useEffect(() => {
     if (!filterMountedRef.current) { filterMountedRef.current = true; return; }
-    refresh(true);
-  }, [filtersKey, refresh]);
+    if (hasSearch) refresh(true);
+  }, [filtersKey, hasSearch, refresh]);
 
   useEffect(() => {
-    if (stack.length <= 3 && !isLoading) loadMore();
-  }, [stack.length, isLoading, loadMore]);
+    if (hasSearch && stack.length <= 3 && !isLoading) loadMore();
+  }, [hasSearch, stack.length, isLoading, loadMore]);
 
-  const activeListName = useMemo(
-    () => searchLists.find((l) => l.id === activeListId)?.name,
+  const activeList = useMemo(
+    () => searchLists.find((l) => l.id === activeListId),
     [searchLists, activeListId],
   );
+  const activeListName = activeList?.name;
+  const activeListCover = activeList?.cover_photo_url ?? null;
 
   const members = useMemo<GroupMember[]>(() => {
     const result: GroupMember[] = [];
@@ -103,16 +106,22 @@ export default function SwipeScreen() {
   }, [stackRef]);
   const handleNotePress = useCallback(() => setModal({ type: 'note' }), []);
   const handleFilterPress = useCallback(() => setModal({ type: 'filter' }), []);
+  const handleCreateSearch = useCallback(() => setModal({ type: 'filter', adding: true }), []);
   const handleModalClose = useCallback(() => setModal(null), []);
 
   const hasColocs = (group?.member_ids?.length ?? 0) > 1;
 
   return (
     <SafeAreaView style={styles.safe} edges={SAFE_EDGES}>
+      {/* Cover banner (photo de couverture de la recherche active) */}
+      {activeListCover && (
+        <Image source={{ uri: activeListCover }} style={styles.coverBanner} />
+      )}
+
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.appName}>Chez Nous</Text>
+        <View style={styles.headerTitles}>
+          <Text style={styles.appName} numberOfLines={1}>{group?.name ?? 'Chez Nous'}</Text>
           {group && (
             <View style={styles.partnerStatusRow}>
               <Ionicons
@@ -140,7 +149,18 @@ export default function SwipeScreen() {
 
       {/* Cards area */}
       <View style={styles.cardsArea}>
-        {isLoading && stack.length === 0 ? (
+        {!hasSearch ? (
+          <View style={styles.centered}>
+            <Ionicons name="search-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyTitle}>Aucune recherche</Text>
+            <Text style={styles.emptyDesc}>Crée une recherche pour commencer à swiper</Text>
+            <TouchableOpacity onPress={handleCreateSearch}>
+              <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
+                <Text style={styles.reloadText}>Créer une recherche</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        ) : isLoading && stack.length === 0 ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color="#4A6CF7" />
             <Text style={styles.loadingText}>Chargement des annonces…</Text>
@@ -201,6 +221,7 @@ export default function SwipeScreen() {
         visible={modal?.type === 'filter'}
         onClose={handleModalClose}
         members={members}
+        initialAdding={modal?.type === 'filter' ? modal.adding : false}
       />
       <ListingDetailSheet
         listing={modal?.type === 'detail' ? modal.listing : null}

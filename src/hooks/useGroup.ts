@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Group, DEFAULT_FILTERS, UserProfile } from '@/types';
+import { Group, UserProfile } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { useFilterStore, DEFAULT_LIST } from '@/stores/filterStore';
 
@@ -24,10 +24,15 @@ export function useGroup() {
       const normalized = { ...data, member_ids: deriveMemberIds(data) };
       setGroup(normalized);
 
+      // Groupe neuf sans aucune recherche → liste vide (l'écran de swipe invite
+      // à en créer une). On migre seulement les anciens groupes qui n'ont qu'un
+      // champ `filters` legacy vers une première recherche par défaut.
       const lists = data.search_lists?.length
         ? data.search_lists
-        : [{ ...DEFAULT_LIST, filters: data.filters ?? DEFAULT_FILTERS }];
-      const activeId = data.active_search_list_id ?? lists[0].id;
+        : data.filters
+          ? [{ ...DEFAULT_LIST, filters: data.filters }]
+          : [];
+      const activeId = data.active_search_list_id ?? lists[0]?.id ?? '';
       useFilterStore.getState().setSearchLists(lists, activeId);
 
       const { firebaseUser } = useAuthStore.getState();

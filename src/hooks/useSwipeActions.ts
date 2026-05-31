@@ -11,6 +11,16 @@ import { notifyColocsOfSwipe } from '@/lib/notifications';
 
 export type MatchState = { title: string; id: number };
 
+type LastSwipe = { listing: Listing; direction: 'left' | 'right'; listId: string };
+
+// Identifiants scopés par critère de recherche (search list) : un même bien
+// peut être swipé indépendamment dans deux critères différents, et un match
+// n'est validé que si tous les participants ont liké le bien DANS le même critère.
+const swipeId = (uid: string, listId: string, listingId: string) =>
+  `${uid}_${listId}_${listingId}`;
+const matchId = (groupId: string, listId: string, listingId: string) =>
+  `${groupId}_${listId}_${listingId}`;
+
 // All swipe-related business logic extracted here.
 // Callbacks are fully stable (empty deps or ref-based) — they use getState()
 // to read fresh store values without adding them as reactive dependencies.
@@ -21,14 +31,14 @@ export function useSwipeActions(
   pushBack: (listing: Listing) => void,
 ) {
   const [matchState, setMatchState] = useState<MatchState | null>(null);
-  const lastSwipeRef = useRef<{ listing: Listing; direction: 'left' | 'right' } | null>(null);
+  const lastSwipeRef = useRef<LastSwipe | null>(null);
 
-  const createMatch = useCallback(async (listing: Listing) => {
+  const createMatch = useCallback(async (listing: Listing, listId: string) => {
     const { groupId } = useAuthStore.getState();
     if (!groupId) return;
-    const matchId = `${groupId}_${listing.id}`;
-    await setDoc(doc(db, 'matches', matchId), {
+    await setDoc(doc(db, 'matches', matchId(groupId, listId, listing.id)), {
       couple_id: groupId,
+      search_list_id: listId,
       listing_id: listing.id,
       listing,
       matched_at: new Date().toISOString(),
@@ -38,62 +48,62 @@ export function useSwipeActions(
     setTimeout(() => setMatchState(null), 3500);
   }, []);
 
-  const checkForMatch = useCallback(async (listing: Listing) => {
-    const { groupId, firebaseUser } = useAuthStore.getState();
-    const { searchLists, activeListId } = useFilterStore.getState();
+  const checkForMatch = useCallback(async (listing: Listing, listId: string) => {
+    const { firebaseUser } = useAuthStore.getState();
+    const { searchLists } = useFilterStore.getState();
     const group = groupRef.current;
-    if (!group || !groupId || !firebaseUser) return;
+    if (!group || !firebaseUser) return;
 
-    const activeList = searchLists.find((l) => l.id === activeListId);
-    const listMemberIds = activeList?.member_ids ?? [];
-
-    if (listMemberIds.length === 1 && listMemberIds[0] === firebaseUser.uid) {
-      await createMatch(listing);
-      return;
-    }
-
+    const activeList = searchLists.find((l) => l.id === listId);
     const groupMemberIds = group.member_ids?.length
       ? group.member_ids
       : [group.user1_id, ...(group.user2_id ? [group.user2_id] : [])];
 
-    // If list scopes to a sub-group, check only those members; otherwise all group members.
-    const targetIds = listMemberIds.length > 0 ? listMemberIds : groupMemberIds;
+    // Participants ciblés par ce critère : le sous-groupe de la liste si défini,
+    // sinon tous les membres du groupe.
+    const targetIds = activeList?.member_ids?.length ? activeList.member_ids : groupMemberIds;
     const otherIds = targetIds.filter((id) => id !== firebaseUser.uid);
+
+    // Solo (ou critère ne ciblant que soi) : match immédiat.
     if (otherIds.length === 0) {
-      await createMatch(listing);
+      await createMatch(listing, listId);
       return;
     }
 
+    // Tous les autres participants doivent avoir liké CE bien DANS CE critère.
     const swipeChecks = await Promise.all(
       otherIds.map((memberId) =>
         getDocs(query(
           collection(db, 'swipes'),
           where('user_id', '==', memberId),
           where('listing_id', '==', listing.id),
+          where('search_list_id', '==', listId),
           where('direction', '==', 'right'),
         )),
       ),
     );
 
     if (swipeChecks.every((snap) => !snap.empty)) {
-      await createMatch(listing);
+      await createMatch(listing, listId);
     }
   }, [groupRef, createMatch]);
 
   const recordSwipe = useCallback(async (listing: Listing, direction: 'left' | 'right') => {
     const { firebaseUser, groupId, profile } = useAuthStore.getState();
+    const { activeListId } = useFilterStore.getState();
     if (!firebaseUser || !groupId) return;
 
-    await setDoc(doc(db, 'swipes', `${firebaseUser.uid}_${listing.id}`), {
+    await setDoc(doc(db, 'swipes', swipeId(firebaseUser.uid, activeListId, listing.id)), {
       user_id: firebaseUser.uid,
       listing_id: listing.id,
       couple_id: groupId,
+      search_list_id: activeListId,
       direction,
       created_at: new Date().toISOString(),
     });
 
     if (direction === 'right') {
-      await checkForMatch(listing);
+      await checkForMatch(listing, activeListId);
       if (profile?.notification_prefs?.notify_on_partner_swipe) {
         notifyColocsOfSwipe(listing, profile.display_name, groupId, firebaseUser.uid).catch(() => {});
       }
@@ -103,7 +113,8 @@ export function useSwipeActions(
   const handleSwipe = useCallback((direction: 'left' | 'right') => {
     const top = stackRef.current[0];
     if (!top) return;
-    lastSwipeRef.current = { listing: top, direction };
+    const { activeListId } = useFilterStore.getState();
+    lastSwipeRef.current = { listing: top, direction, listId: activeListId };
     pop();
     recordSwipe(top, direction);
   }, [stackRef, pop, recordSwipe]);
@@ -111,12 +122,12 @@ export function useSwipeActions(
   const handleUndo = useCallback(async () => {
     const { firebaseUser, groupId } = useAuthStore.getState();
     if (!lastSwipeRef.current || !firebaseUser || !groupId) return;
-    const { listing, direction } = lastSwipeRef.current;
+    const { listing, direction, listId } = lastSwipeRef.current;
     lastSwipeRef.current = null;
     pushBack(listing);
-    await deleteDoc(doc(db, 'swipes', `${firebaseUser.uid}_${listing.id}`)).catch(() => {});
+    await deleteDoc(doc(db, 'swipes', swipeId(firebaseUser.uid, listId, listing.id))).catch(() => {});
     if (direction === 'right') {
-      await deleteDoc(doc(db, 'matches', `${groupId}_${listing.id}`)).catch(() => {});
+      await deleteDoc(doc(db, 'matches', matchId(groupId, listId, listing.id))).catch(() => {});
       setMatchState(null);
     }
   }, [pushBack]);
