@@ -166,14 +166,14 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, 
 
         {isTop && (
           <View style={styles.cardActions}>
-            <TouchableOpacity onPress={onUndo} disabled={!canUndo} activeOpacity={0.85} style={!canUndo ? styles.undoDisabled : undefined}>
-              <LinearGradient colors={['#7C3AED', '#A855F7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardUndoBtn}>
-                <Ionicons name="arrow-undo" size={20} color="#fff" />
-              </LinearGradient>
-            </TouchableOpacity>
             <TouchableOpacity onPress={onSwipeLeft} activeOpacity={0.85}>
               <LinearGradient colors={['#FF0044', '#FF4D88']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardActionBtn}>
                 <Ionicons name="close" size={28} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onUndo} disabled={!canUndo} activeOpacity={0.85}>
+              <LinearGradient colors={['#FFD54F', '#FFA000']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardUndoBtn}>
+                <Ionicons name="arrow-undo" size={20} color="#fff" />
               </LinearGradient>
             </TouchableOpacity>
             <TouchableOpacity onPress={onSwipeRight} activeOpacity={0.85}>
@@ -393,13 +393,10 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7C3AED',
+    shadowColor: '#FFA000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
-  },
-  undoDisabled: {
-    opacity: 0.35,
   },
 });

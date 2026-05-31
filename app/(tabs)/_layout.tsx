@@ -1,10 +1,12 @@
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 
 export default function TabsLayout() {
   const isLoading = useAuthStore((s) => s.isLoading);
   const hasUser = useAuthStore((s) => !!s.firebaseUser);
+  const insets = useSafeAreaInsets();
 
   if (!isLoading && !hasUser) {
     return <Redirect href="/(auth)" />;
@@ -20,8 +22,8 @@ export default function TabsLayout() {
           backgroundColor: '#fff',
           borderTopWidth: 1,
           borderTopColor: '#f0f0f0',
-          paddingBottom: 4,
-          height: 60,
+          paddingBottom: insets.bottom + 4,
+          height: 60 + insets.bottom,
         },
         tabBarLabelStyle: {
           fontSize: 11,

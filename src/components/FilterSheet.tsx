@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, Modal, TouchableOpacity, Pressable,
   ScrollView, Platform, TextInput, Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { GroupMember, SearchFilters, DEFAULT_FILTERS } from '@/types';
 import { useFilterStore } from '@/stores/filterStore';
@@ -29,12 +30,15 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
   const searchLists = useFilterStore((s) => s.searchLists);
   const activeListId = useFilterStore((s) => s.activeListId);
   const groupId = useAuthStore((s) => s.groupId);
+  const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState(activeListId);
   const [local, setLocal] = useState<SearchFilters>(DEFAULT_FILTERS);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newMemberIds, setNewMemberIds] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -44,6 +48,8 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
       setAdding(false);
       setNewName('');
       setNewMemberIds(members.map((m) => m.uid));
+      setEditingId(null);
+      setEditName('');
     }
   }, [visible]);
 
@@ -85,6 +91,22 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
     setNewName('');
     setNewMemberIds(members.map((m) => m.uid));
   };
+
+  const startEdit = (id: string, currentName: string) => {
+    setEditingId(id);
+    setEditName(currentName);
+    setAdding(false);
+  };
+
+  const confirmEdit = async () => {
+    const name = editName.trim();
+    if (!name || !groupId || !editingId) { setEditingId(null); return; }
+    await useFilterStore.getState().renameList(groupId, editingId, name);
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const cancelEdit = () => { setEditingId(null); setEditName(''); };
 
   const handleRemove = (id: string) => {
     if (!groupId || searchLists.length <= 1) return;
@@ -133,26 +155,53 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
           >
             {searchLists.map((list) => {
               const isActive = list.id === activeTab;
+              const isEditing = editingId === list.id;
+              if (isEditing) {
+                return (
+                  <View key={list.id} style={[styles.tab, styles.tabActive, styles.tabEditing]}>
+                    <TextInput
+                      value={editName}
+                      onChangeText={setEditName}
+                      autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={confirmEdit}
+                      style={styles.tabEditInput}
+                    />
+                    <TouchableOpacity onPress={confirmEdit} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                      <Ionicons name="checkmark-circle" size={18} color={editName.trim() ? '#4A6CF7' : '#ccc'} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={cancelEdit} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                      <Ionicons name="close-circle" size={18} color="#ccc" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
               return (
                 <TouchableOpacity
                   key={list.id}
                   style={[styles.tab, isActive && styles.tabActive]}
                   onPress={() => switchTab(list.id)}
+                  onLongPress={() => startEdit(list.id, list.name)}
                 >
                   <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
                     {list.name}
                   </Text>
+                  {isActive && (
+                    <TouchableOpacity
+                      style={styles.tabDelete}
+                      onPress={() => startEdit(list.id, list.name)}
+                      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                    >
+                      <Ionicons name="pencil" size={12} color="#4A6CF7" />
+                    </TouchableOpacity>
+                  )}
                   {isActive && searchLists.length > 1 && (
                     <TouchableOpacity
                       style={styles.tabDelete}
                       onPress={() => handleRemove(list.id)}
                       hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                     >
-                      <Ionicons
-                        name="close-circle"
-                        size={14}
-                        color={isActive ? '#4A6CF7' : '#aaa'}
-                      />
+                      <Ionicons name="close-circle" size={14} color="#4A6CF7" />
                     </TouchableOpacity>
                   )}
                 </TouchableOpacity>
@@ -293,7 +342,7 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
           <View style={{ height: 40 }} />
         </ScrollView>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
           <TouchableOpacity style={styles.applyBtn} onPress={apply}>
             <Text style={styles.applyText}>Appliquer les filtres</Text>
           </TouchableOpacity>
@@ -390,6 +439,18 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 13, color: '#555', fontWeight: '500' },
   tabTextActive: { color: '#4A6CF7', fontWeight: '600' },
   tabDelete: { marginLeft: 2 },
+  tabEditing: {
+    paddingHorizontal: 8,
+    minWidth: 120,
+  },
+  tabEditInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#4A6CF7',
+    fontWeight: '600',
+    paddingVertical: 0,
+    minWidth: 60,
+  },
   addTab: {
     width: 34,
     height: 34,

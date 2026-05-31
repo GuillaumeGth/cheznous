@@ -17,6 +17,7 @@ type FilterState = {
   setFilters: (filters: SearchFilters) => void;
   syncFilters: (groupId: string, filters: SearchFilters, listId?: string) => Promise<void>;
   addList: (groupId: string, name: string, memberIds: string[]) => Promise<string>;
+  renameList: (groupId: string, id: string, name: string) => Promise<void>;
   removeList: (groupId: string, id: string) => Promise<string>;
   setActiveList: (groupId: string, id: string) => Promise<void>;
 };
@@ -59,6 +60,13 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     set({ searchLists: updated, activeListId: id, filters: DEFAULT_FILTERS });
     await pushToFirestore(groupId, updated, id);
     return id;
+  },
+
+  renameList: async (groupId, id, name) => {
+    const { searchLists, activeListId } = get();
+    const updated = searchLists.map((l) => (l.id === id ? { ...l, name } : l));
+    set({ searchLists: updated });
+    await pushToFirestore(groupId, updated, activeListId);
   },
 
   removeList: async (groupId, id) => {

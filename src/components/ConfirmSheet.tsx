@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming,
 } from 'react-native-reanimated';
@@ -19,6 +20,7 @@ export default function ConfirmSheet({
   confirmLabel = 'Confirmer', confirmDestructive = false,
   onConfirm, onCancel,
 }: Props) {
+  const insets = useSafeAreaInsets();
   const translateY = useSharedValue(300);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function ConfirmSheet({
       statusBarTranslucent
     >
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onCancel}>
-        <Animated.View style={[styles.sheet, sheetStyle]}>
+        <Animated.View style={[styles.sheet, sheetStyle, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.handle} />
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.message}>{message}</Text>

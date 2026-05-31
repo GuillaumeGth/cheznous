@@ -5,6 +5,7 @@ import {
   Image, Alert,
 } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/authStore';
 import { searchUsers, sendGroupInvitation } from '@/services/userSearch';
@@ -55,6 +56,7 @@ export default function AddMemberSheet({ visible, groupId, currentMemberIds, onC
   const [results, setResults] = useState<UserSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [invitedUids, setInvitedUids] = useState<Set<string>>(new Set());
+  const insets = useSafeAreaInsets();
 
   const translateY = useSharedValue(400);
 
@@ -113,7 +115,7 @@ export default function AddMemberSheet({ visible, groupId, currentMemberIds, onC
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Animated.View style={[styles.sheet, sheetStyle]}>
+        <Animated.View style={[styles.sheet, sheetStyle, { paddingBottom: insets.bottom + 24 }]}>
           <View style={styles.handle} />
           <Text style={styles.title}>Ajouter un coloc</Text>
 

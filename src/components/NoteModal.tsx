@@ -10,6 +10,7 @@ import {
   Platform,
   Pressable,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 type Props = {
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export default function NoteModal({ visible, initialText, listingTitle, onSave, onClose }: Props) {
+  const insets = useSafeAreaInsets();
   const [text, setText] = useState(initialText);
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function NoteModal({ visible, initialText, listingTitle, onSave, 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.sheetWrapper}
       >
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.handle} />
 
           <View style={styles.header}>

@@ -70,15 +70,22 @@ export default function ProfileScreen() {
     setUploadingPhoto(true);
     try {
       const uri = result.assets[0].uri;
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => resolve(xhr.response as Blob);
+        xhr.onerror = () => reject(new Error('Lecture du fichier échouée'));
+        xhr.responseType = 'blob';
+        xhr.open('GET', uri, true);
+        xhr.send(null);
+      });
       const storageRef = ref(storage, `avatars/${firebaseUser.uid}.jpg`);
       await uploadBytes(storageRef, blob);
       const downloadURL = await getDownloadURL(storageRef);
       await updateDoc(doc(db, 'users', firebaseUser.uid), { photo_url: downloadURL });
       useAuthStore.getState().setProfile({ ...profile, photo_url: downloadURL });
       showToast('Photo mise à jour !', 'success');
-    } catch {
+    } catch (err) {
+      console.error('[changePhoto]', err);
       showToast('Impossible de changer la photo. Réessaie.', 'error');
     } finally {
       setUploadingPhoto(false);
