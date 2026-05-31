@@ -33,10 +33,12 @@ export function useNewListingsNotify() {
         const snap = await getDocs(q);
         const matching = snap.docs.filter((d) => {
           const data = d.data();
-          const { arrondissements, price_max, surface_min, rooms_min } = filters;
+          const { arrondissements, price_min, price_max, surface_min, surface_max, rooms_min } = filters;
           if (arrondissements.length > 0 && !arrondissements.includes(data.arrondissement)) return false;
-          if (data.price > price_max) return false;
-          if (data.surface < surface_min) return false;
+          if (price_min > 0 && data.price < price_min) return false;
+          if (price_max > 0 && data.price > price_max) return false;
+          if (surface_min > 0 && data.surface < surface_min) return false;
+          if (surface_max > 0 && data.surface > surface_max) return false;
           if (rooms_min > 0 && data.rooms < rooms_min) return false;
           return true;
         });

@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Avatars : lecture pour tout utilisateur connecté (affichés dans la
+    // recherche de colocs) ; écriture réservée au propriétaire, dont l'uid
+    // est le nom du fichier (`avatars/{uid}.jpg`).
+    match /avatars/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && fileName.matches(request.auth.uid + '\\.jpg');
+    }
+
+    // Photos de couverture des listes de recherche, partagées par le groupe.
+    // Tout utilisateur connecté peut lire/écrire (cohérent avec l'approche
+    // relâchée des règles Firestore pour les données de groupe).
+    match /search_covers/{fileName} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Pièces jointes du chat (images ≤ 5 Mo, fichiers ≤ 10 Mo).
+    // La vérification de taille est aussi faite côté client dans useChat.ts.
+    match /chat/{matchId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size <= 10 * 1024 * 1024;
+    }
+  }
+}

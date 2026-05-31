@@ -32,25 +32,42 @@ type Listing = {
 };
 ```
 
+## TransactionType
+
+```ts
+type TransactionType = 'rent' | 'buy'; // 'rent' = location, 'buy' = achat
+```
+
 ## SearchFilters
 
-Critères de filtrage appliqués aux annonces.
+Critères de filtrage appliqués aux annonces. Les bornes numériques sont des
+**plages min/max** ; la valeur `0` signifie **« aucune borne »** (filtre inactif).
 
 ```ts
 type SearchFilters = {
-  arrondissements: number[]; // [] = tous
-  price_max: number;         // loyer max (€/mois)
-  surface_min: number;       // surface min (m²)
-  rooms_min: number;         // 0 = tous, 1 = studio+, etc.
+  transaction_type: TransactionType; // location ou achat
+  arrondissements: number[];         // [] = tous
+  price_min: number;                 // prix/loyer min ; 0 = pas de min
+  price_max: number;                 // prix/loyer max ; 0 = pas de max
+  surface_min: number;               // surface min (m²) ; 0 = pas de min
+  surface_max: number;               // surface max (m²) ; 0 = pas de max
+  rooms_min: number;                 // 0 = tous, 1 = studio+, etc.
 };
 
 const DEFAULT_FILTERS: SearchFilters = {
+  transaction_type: 'rent',
   arrondissements: [],
-  price_max: 2500,
-  surface_min: 25,
+  price_min: 0,
+  price_max: 0,
+  surface_min: 0,
+  surface_max: 0,
   rooms_min: 0,
 };
 ```
+
+> **Sémantique du prix** : en location, `price_min`/`price_max` sont un **loyer
+> mensuel** (€/mois) ; en achat, un **prix de vente total** (€). L'UI adapte le
+> libellé (« Loyer » vs « Prix ») selon `transaction_type`.
 
 ## SearchList
 

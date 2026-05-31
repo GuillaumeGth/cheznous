@@ -24,17 +24,30 @@ export type Listing = {
 
 export type SwipeDirection = 'left' | 'right';
 
+export type TransactionType = 'rent' | 'buy';
+
+/**
+ * Numeric range fields (`price_min`, `price_max`, `surface_min`, `surface_max`)
+ * use `0` as "no restriction" — i.e. `price_min: 0` means no lower bound,
+ * `price_max: 0` means no upper bound. Only positive values are applied as filters.
+ */
 export type SearchFilters = {
+  transaction_type: TransactionType;
   arrondissements: number[];
+  price_min: number;
   price_max: number;
   surface_min: number;
+  surface_max: number;
   rooms_min: number;
 };
 
 export const DEFAULT_FILTERS: SearchFilters = {
+  transaction_type: 'rent',
   arrondissements: [],
-  price_max: 2500,
-  surface_min: 25,
+  price_min: 0,
+  price_max: 0,
+  surface_min: 0,
+  surface_max: 0,
   rooms_min: 0,
 };
 
@@ -51,6 +64,7 @@ export type SearchList = {
 export type GroupMember = {
   uid: string;
   displayName: string;
+  photoUrl?: string | null;
 };
 
 // Firestore collection: `groups`
@@ -109,6 +123,17 @@ export type NotificationPrefs = {
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   notify_on_partner_swipe: false,
   notify_on_new_listings: false,
+};
+
+export type ChatMessage = {
+  id: string;
+  user_id: string;
+  display_name: string;
+  text: string;
+  created_at: string;
+  attachment_url?: string;
+  attachment_type?: 'image' | 'file';
+  attachment_name?: string;
 };
 
 export type Note = {

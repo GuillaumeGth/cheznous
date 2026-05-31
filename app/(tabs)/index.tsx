@@ -17,6 +17,7 @@ import FilterSheet from '@/components/FilterSheet';
 import ListingDetailSheet from '@/components/ListingDetailSheet';
 import NoteModal from '@/components/NoteModal';
 import ConfettiOverlay from '@/components/ConfettiOverlay';
+import MemberAvatars from '@/components/MemberAvatars';
 import { GroupMember, Listing } from '@/types';
 import { styles } from '@/styles/swipeScreen.styles';
 
@@ -35,6 +36,7 @@ type ActiveModal =
 export default function SwipeScreen() {
   const uid = useAuthStore((s) => s.firebaseUser?.uid);
   const displayName = useAuthStore((s) => s.profile?.display_name);
+  const myPhoto = useAuthStore((s) => s.profile?.photo_url);
   const searchLists = useFilterStore((s) => s.searchLists);
   const activeListId = useFilterStore((s) => s.activeListId);
   const hasSearch = searchLists.length > 0;
@@ -82,10 +84,12 @@ export default function SwipeScreen() {
 
   const members = useMemo<GroupMember[]>(() => {
     const result: GroupMember[] = [];
-    if (uid && displayName) result.push({ uid, displayName });
-    memberProfiles.forEach((p) => result.push({ uid: p.id, displayName: p.display_name }));
+    if (uid && displayName) result.push({ uid, displayName, photoUrl: myPhoto ?? null });
+    memberProfiles.forEach((p) =>
+      result.push({ uid: p.id, displayName: p.display_name, photoUrl: p.photo_url }),
+    );
     return result;
-  }, [uid, displayName, memberProfiles]);
+  }, [uid, displayName, myPhoto, memberProfiles]);
 
   const visibleCards = useMemo(() => {
     const top = stack.slice(0, 3);
@@ -113,22 +117,23 @@ export default function SwipeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={SAFE_EDGES}>
-      {/* Cover banner (photo de couverture de la recherche active) */}
-      {activeListCover && (
-        <Image source={{ uri: activeListCover }} style={styles.coverBanner} />
-      )}
-
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitles}>
+          {activeListCover && (
+            <View style={styles.groupAvatar}>
+              <Image source={{ uri: activeListCover }} style={styles.groupAvatarImage} />
+            </View>
+          )}
+          <View style={styles.headerText}>
           <Text style={styles.appName} numberOfLines={1}>{group?.name ?? 'Chez Nous'}</Text>
           {group && (
             <View style={styles.partnerStatusRow}>
-              <Ionicons
-                name={hasColocs ? 'people' : 'time-outline'}
-                size={12}
-                color="#888"
-              />
+              {hasColocs ? (
+                <MemberAvatars members={members} />
+              ) : (
+                <Ionicons name="time-outline" size={12} color="#888" />
+              )}
               <Text style={styles.partnerStatus}>
                 {hasColocs
                   ? `En recherche à ${group.member_ids.length}`
@@ -136,6 +141,7 @@ export default function SwipeScreen() {
               </Text>
             </View>
           )}
+          </View>
         </View>
         <TouchableOpacity onPress={handleFilterPress}>
           <LinearGradient colors={FILTER_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.filterBtn}>

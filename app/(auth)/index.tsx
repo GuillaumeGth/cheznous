@@ -45,7 +45,7 @@ function GoogleButton({ onCredential, disabled }: { onCredential: (token: string
   );
 }
 
-const showGoogleBtn = Platform.OS !== 'android' || !!GOOGLE_ANDROID_CLIENT_ID;
+const showGoogleBtn = !!GOOGLE_WEB_CLIENT_ID;
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');

@@ -40,6 +40,18 @@ describe('fetchListings — mock data (no API key)', () => {
     listings.forEach((l) => expect(l.rooms).toBeGreaterThanOrEqual(2));
   });
 
+  it('respects surface_max', async () => {
+    const filters: SearchFilters = { ...DEFAULT_FILTERS, surface_max: 35 };
+    const listings = await fetchListings(filters);
+    listings.forEach((l) => expect(l.surface).toBeLessThanOrEqual(35));
+  });
+
+  it('respects price_min', async () => {
+    const filters: SearchFilters = { ...DEFAULT_FILTERS, price_min: 1400 };
+    const listings = await fetchListings(filters);
+    listings.forEach((l) => expect(l.price).toBeGreaterThanOrEqual(1400));
+  });
+
   it('restricts arrondissements to the specified set', async () => {
     const allowed = [5, 6, 7];
     const filters: SearchFilters = { ...DEFAULT_FILTERS, arrondissements: allowed };
@@ -105,6 +117,81 @@ describe('fetchListings — stream.estate API path', () => {
     expect(url).toContain('75001');
     expect(url).toContain('75002');
     expect((options.headers as Record<string, string>)['X-API-KEY']).toBe('test-key');
+  });
+
+  it('sends budgetMin when price_min > 0, omits it when 0', async () => {
+    process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY = 'test-key';
+    let fetchWithKey!: typeof fetchListings;
+
+    jest.isolateModules(() => {
+      fetchWithKey = require('@/services/listingsService').fetchListings;
+    });
+
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ 'hydra:member': [] }),
+    });
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    await fetchWithKey({ ...DEFAULT_FILTERS, price_min: 800 });
+    await fetchWithKey({ ...DEFAULT_FILTERS, price_min: 0 });
+
+    delete process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY;
+
+    const [withMin] = mockFetch.mock.calls[0] as [string];
+    const [withoutMin] = mockFetch.mock.calls[1] as [string];
+    expect(withMin).toContain('budgetMin=800');
+    expect(withoutMin).not.toContain('budgetMin');
+  });
+
+  it('sends surfaceMax when surface_max > 0, omits it when 0', async () => {
+    process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY = 'test-key';
+    let fetchWithKey!: typeof fetchListings;
+
+    jest.isolateModules(() => {
+      fetchWithKey = require('@/services/listingsService').fetchListings;
+    });
+
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ 'hydra:member': [] }),
+    });
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    await fetchWithKey({ ...DEFAULT_FILTERS, surface_max: 80 });
+    await fetchWithKey({ ...DEFAULT_FILTERS, surface_max: 0 });
+
+    delete process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY;
+
+    const [withMax] = mockFetch.mock.calls[0] as [string];
+    const [withoutMax] = mockFetch.mock.calls[1] as [string];
+    expect(withMax).toContain('surfaceMax=80');
+    expect(withoutMax).not.toContain('surfaceMax');
+  });
+
+  it('sends transactionType=1 for rent and =2 for buy', async () => {
+    process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY = 'test-key';
+    let fetchWithKey!: typeof fetchListings;
+
+    jest.isolateModules(() => {
+      fetchWithKey = require('@/services/listingsService').fetchListings;
+    });
+
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ 'hydra:member': [] }),
+    });
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    await fetchWithKey({ ...DEFAULT_FILTERS, transaction_type: 'rent' });
+    await fetchWithKey({ ...DEFAULT_FILTERS, transaction_type: 'buy' });
+
+    delete process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY;
+
+    const [rentUrl] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const [buyUrl] = mockFetch.mock.calls[1] as [string, RequestInit];
+    expect(rentUrl).toContain('transactionType=1');
+    expect(buyUrl).toContain('transactionType=2');
   });
 
   it('maps stream.estate response fields to the Listing shape', async () => {

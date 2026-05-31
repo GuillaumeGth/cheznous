@@ -15,12 +15,21 @@ export async function fetchListings(filters: SearchFilters, page = 1): Promise<L
   return generateMockListings(filters, page);
 }
 
+// stream.estate transactionType codes. '1' = location is the value the app has
+// always sent; '2' = achat (vente) — à confirmer avec la doc stream.estate.
+const STREAM_TRANSACTION_TYPE: Record<SearchFilters['transaction_type'], string> = {
+  rent: '1',
+  buy: '2',
+};
+
 async function fetchFromStreamEstate(filters: SearchFilters, page: number): Promise<Listing[]> {
   const params = new URLSearchParams({
-    transactionType: '1',
+    transactionType: STREAM_TRANSACTION_TYPE[filters.transaction_type] ?? '1',
     'propertyTypes[]': '0',
-    budgetMax: String(filters.price_max),
-    surfaceMin: String(filters.surface_min),
+    ...(filters.price_min > 0 && { budgetMin: String(filters.price_min) }),
+    ...(filters.price_max > 0 && { budgetMax: String(filters.price_max) }),
+    ...(filters.surface_min > 0 && { surfaceMin: String(filters.surface_min) }),
+    ...(filters.surface_max > 0 && { surfaceMax: String(filters.surface_max) }),
     ...(filters.rooms_min > 0 && { roomMin: String(filters.rooms_min) }),
     page: String(page),
     itemsPerPage: String(PAGE_SIZE),
@@ -112,9 +121,14 @@ function generateMockListings(filters: SearchFilters, page: number): Listing[] {
   return Array.from({ length: PAGE_SIZE }, (_, i) => {
     const arr = arrondissements[Math.floor(Math.random() * arrondissements.length)];
     const rooms = Math.max(filters.rooms_min || 1, Math.floor(Math.random() * 3) + 1);
-    const surface = Math.max(filters.surface_min, 20 + rooms * 15 + Math.floor(Math.random() * 20));
+    const rawSurface = 20 + rooms * 15 + Math.floor(Math.random() * 20);
+    const surface = Math.max(
+      filters.surface_min > 0 ? filters.surface_min : 0,
+      filters.surface_max > 0 ? Math.min(rawSurface, filters.surface_max) : rawSurface,
+    );
     const basePrice = 800 + arr * 40 + rooms * 200 + Math.floor(Math.random() * 200);
-    const price = Math.min(basePrice, filters.price_max);
+    let price = filters.price_max > 0 ? Math.min(basePrice, filters.price_max) : basePrice;
+    if (filters.price_min > 0 && price < filters.price_min) price = filters.price_min;
     const streetNum = Math.floor(Math.random() * 120) + 1;
     const street = PARIS_STREETS[Math.floor(Math.random() * PARIS_STREETS.length)];
     const imageOffset = (page * 10 + i) % LISTING_IMAGES.length;

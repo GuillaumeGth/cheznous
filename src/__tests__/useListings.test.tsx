@@ -19,7 +19,15 @@ jest.mock('firebase/firestore', () => ({
 }));
 
 // Stable filters object → stable filtersKey, so the throttle logic is testable.
-const FILTERS = { arrondissements: [], price_max: 3000, surface_min: 0, rooms_min: 0 };
+const FILTERS = {
+  transaction_type: 'rent',
+  arrondissements: [],
+  price_min: 0,
+  price_max: 3000,
+  surface_min: 0,
+  surface_max: 0,
+  rooms_min: 0,
+};
 jest.mock('@/stores/filterStore', () => ({
   useFilterStore: () => ({ filters: FILTERS }),
 }));

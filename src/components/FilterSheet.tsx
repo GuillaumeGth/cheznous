@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { GroupMember, SearchFilters, DEFAULT_FILTERS } from '@/types';
+import { GroupMember, SearchFilters, TransactionType, DEFAULT_FILTERS } from '@/types';
 import { useFilterStore } from '@/stores/filterStore';
 import { useAuthStore } from '@/stores/authStore';
 import { pickAndUploadImage } from '@/lib/uploadImage';
@@ -19,8 +19,12 @@ type Props = {
 };
 
 const ARRONDISSEMENTS = Array.from({ length: 20 }, (_, i) => i + 1);
-const PRICE_STEPS = [1000, 1200, 1500, 1800, 2000, 2500, 3000, 4000, 5000];
-const SURFACE_STEPS = [15, 20, 25, 30, 35, 40, 50, 60, 80];
+const TRANSACTION_OPTIONS: { label: string; value: TransactionType }[] = [
+  { label: 'Location', value: 'rent' },
+  { label: 'Achat', value: 'buy' },
+];
+
+const normalizeFilters = (f?: SearchFilters): SearchFilters => ({ ...DEFAULT_FILTERS, ...(f ?? {}) });
 const ROOMS_OPTIONS = [
   { label: 'Tous', value: 0 },
   { label: 'Studio', value: 1 },
@@ -53,7 +57,7 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
     if (visible) {
       setActiveTab(activeListId);
       const list = searchLists.find((l) => l.id === activeListId);
-      setLocal(list?.filters ?? DEFAULT_FILTERS);
+      setLocal(normalizeFilters(list?.filters));
       setAdding(initialAdding ?? searchLists.length === 0);
       setNewName('');
       setNewMemberIds(members.map((m) => m.uid));
@@ -65,7 +69,15 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
   const switchTab = (id: string) => {
     setActiveTab(id);
     const list = searchLists.find((l) => l.id === id);
-    if (list) setLocal(list.filters);
+    if (list) setLocal(normalizeFilters(list.filters));
+  };
+
+  const setTransaction = (value: TransactionType) => {
+    setLocal((f) =>
+      f.transaction_type === value
+        ? f
+        : { ...f, transaction_type: value, price_min: 0, price_max: 0 },
+    );
   };
 
   const toggleArr = (arr: number) => {
@@ -155,13 +167,15 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
             if (activeTab === id) {
               setActiveTab(newActiveId);
               const list = searchLists.find((l) => l.id === newActiveId);
-              if (list) setLocal(list.filters);
+              if (list) setLocal(normalizeFilters(list.filters));
             }
           },
         },
       ],
     );
   };
+
+  const isBuy = local.transaction_type === 'buy';
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -321,6 +335,23 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
             )}
           </View>
 
+          {/* Type de transaction */}
+          <Section title="Type de transaction">
+            <View style={styles.steps}>
+              {TRANSACTION_OPTIONS.map(({ label, value }) => (
+                <TouchableOpacity
+                  key={value}
+                  style={[styles.step, local.transaction_type === value && styles.stepActive]}
+                  onPress={() => setTransaction(value)}
+                >
+                  <Text style={[styles.stepText, local.transaction_type === value && styles.stepTextActive]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Section>
+
           {/* Arrondissements */}
           <Section title="Arrondissements">
             <Text style={styles.hint}>
@@ -343,37 +374,61 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
             </View>
           </Section>
 
-          {/* Prix max */}
-          <Section title={`Loyer max — ${local.price_max.toLocaleString('fr-FR')} €/mois`}>
-            <View style={styles.steps}>
-              {PRICE_STEPS.map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[styles.step, local.price_max === p && styles.stepActive]}
-                  onPress={() => setLocal((f) => ({ ...f, price_max: p }))}
-                >
-                  <Text style={[styles.stepText, local.price_max === p && styles.stepTextActive]}>
-                    {p >= 1000 ? `${p / 1000}k` : p}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {/* Prix */}
+          <Section title={isBuy ? 'Prix (€)' : 'Loyer (€/mois)'}>
+            <View style={styles.rangeRow}>
+              <View style={styles.rangeInputWrap}>
+                <Text style={styles.rangeLabel}>Min</Text>
+                <TextInput
+                  style={styles.rangeInput}
+                  keyboardType="numeric"
+                  value={local.price_min > 0 ? String(local.price_min) : ''}
+                  onChangeText={(t) => setLocal((f) => ({ ...f, price_min: parseInt(t, 10) || 0 }))}
+                  placeholder="Aucun"
+                  placeholderTextColor="#aaa"
+                />
+              </View>
+              <Text style={styles.rangeSeparator}>—</Text>
+              <View style={styles.rangeInputWrap}>
+                <Text style={styles.rangeLabel}>Max</Text>
+                <TextInput
+                  style={styles.rangeInput}
+                  keyboardType="numeric"
+                  value={local.price_max > 0 ? String(local.price_max) : ''}
+                  onChangeText={(t) => setLocal((f) => ({ ...f, price_max: parseInt(t, 10) || 0 }))}
+                  placeholder="Aucun"
+                  placeholderTextColor="#aaa"
+                />
+              </View>
             </View>
           </Section>
 
-          {/* Surface min */}
-          <Section title={`Surface min — ${local.surface_min} m²`}>
-            <View style={styles.steps}>
-              {SURFACE_STEPS.map((s) => (
-                <TouchableOpacity
-                  key={s}
-                  style={[styles.step, local.surface_min === s && styles.stepActive]}
-                  onPress={() => setLocal((f) => ({ ...f, surface_min: s }))}
-                >
-                  <Text style={[styles.stepText, local.surface_min === s && styles.stepTextActive]}>
-                    {s}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {/* Surface */}
+          <Section title="Surface (m²)">
+            <View style={styles.rangeRow}>
+              <View style={styles.rangeInputWrap}>
+                <Text style={styles.rangeLabel}>Min</Text>
+                <TextInput
+                  style={styles.rangeInput}
+                  keyboardType="numeric"
+                  value={local.surface_min > 0 ? String(local.surface_min) : ''}
+                  onChangeText={(t) => setLocal((f) => ({ ...f, surface_min: parseInt(t, 10) || 0 }))}
+                  placeholder="Aucun"
+                  placeholderTextColor="#aaa"
+                />
+              </View>
+              <Text style={styles.rangeSeparator}>—</Text>
+              <View style={styles.rangeInputWrap}>
+                <Text style={styles.rangeLabel}>Max</Text>
+                <TextInput
+                  style={styles.rangeInput}
+                  keyboardType="numeric"
+                  value={local.surface_max > 0 ? String(local.surface_max) : ''}
+                  onChangeText={(t) => setLocal((f) => ({ ...f, surface_max: parseInt(t, 10) || 0 }))}
+                  placeholder="Aucun"
+                  placeholderTextColor="#aaa"
+                />
+              </View>
             </View>
           </Section>
 
@@ -429,14 +484,23 @@ function MemberChip({ member, selected, onToggle }: MemberChipProps) {
       style={selected ? styles.memberChipSelected : styles.memberChip}
       onPress={handlePress}
     >
+      {member.photoUrl ? (
+        <Image source={{ uri: member.photoUrl }} style={styles.memberChipAvatar} />
+      ) : (
+        <View style={styles.memberChipAvatarPlaceholder}>
+          <Text style={styles.memberChipAvatarLetter}>
+            {member.displayName?.[0]?.toUpperCase() ?? '?'}
+          </Text>
+        </View>
+      )}
+      <Text style={selected ? styles.memberChipTextSelected : styles.memberChipText}>
+        {member.displayName}
+      </Text>
       <Ionicons
         name={selected ? 'checkmark-circle' : 'ellipse-outline'}
         size={14}
         color={selected ? '#4A6CF7' : '#aaa'}
       />
-      <Text style={selected ? styles.memberChipTextSelected : styles.memberChipText}>
-        {member.displayName}
-      </Text>
     </Pressable>
   );
 }
@@ -669,6 +733,16 @@ const styles = StyleSheet.create({
     borderColor: '#4A6CF7',
     backgroundColor: '#EEF1FF',
   },
+  memberChipAvatar: { width: 22, height: 22, borderRadius: 11 },
+  memberChipAvatarPlaceholder: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#4A6CF7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memberChipAvatarLetter: { color: '#fff', fontSize: 11, fontWeight: '700' },
   memberChipText: {
     fontSize: 13,
     color: '#555',
@@ -678,5 +752,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#4A6CF7',
     fontWeight: '600',
+  },
+  rangeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  rangeInputWrap: {
+    flex: 1,
+  },
+  rangeLabel: {
+    fontSize: 12,
+    color: '#888',
+    fontWeight: '600',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  rangeInput: {
+    height: 44,
+    borderWidth: 1.5,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: '#1A1A2E',
+    backgroundColor: '#F8F9FA',
+  },
+  rangeSeparator: {
+    fontSize: 20,
+    color: '#ccc',
+    paddingBottom: 10,
   },
 });

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Match } from '@/types';
 
 const STATUS_LABELS: Record<Match['status'], string> = {
@@ -69,15 +70,25 @@ export default function MatchCard({ match, onStatusChange }: Props) {
           >
             <Text style={styles.contactText}>Voir l'annonce</Text>
           </TouchableOpacity>
-          {status === 'new' && (
-            <TouchableOpacity
-              style={styles.statusBtn}
-              onPress={() => onStatusChange(match.id, 'contacted')}
-            >
-              <Text style={styles.statusBtnText}>Marquer contacté</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.chatBtn}
+            onPress={() => router.push({
+              pathname: `/chat/${match.id}`,
+              params: { title: listing.title, address: listing.address },
+            })}
+          >
+            <Ionicons name="chatbubble-outline" size={16} color="#4A6CF7" />
+            <Text style={styles.chatBtnText}>Discuter</Text>
+          </TouchableOpacity>
         </View>
+        {status === 'new' && (
+          <TouchableOpacity
+            style={styles.statusBtn}
+            onPress={() => onStatusChange(match.id, 'contacted')}
+          >
+            <Text style={styles.statusBtnText}>Marquer contacté</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -170,12 +181,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  statusBtn: {
+  chatBtn: {
     flex: 1,
+    flexDirection: 'row',
     backgroundColor: '#F0F4FF',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  chatBtnText: {
+    color: '#4A6CF7',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  statusBtn: {
+    backgroundColor: '#F0F4FF',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 8,
   },
   statusBtnText: {
     color: '#4A6CF7',

@@ -69,6 +69,15 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
+    // Chat messages for a matched listing — members of the couple only
+    match /matches/{matchId}/messages/{messageId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.user_id == request.auth.uid;
+    }
+
     // Crash reports written by the client error reporter (errorReporting.ts).
     match /crash_reports/{id} {
       allow write: if true;
