@@ -153,10 +153,11 @@ export function useSwipeActions(
     }
   }, [pushBack]);
 
-  const handleShareToChat = useCallback(() => {
+  // Returns true if the listing was shared so the screen can show feedback.
+  const handleShareToChat = useCallback(async (): Promise<boolean> => {
     const top = stackRef.current[0];
-    if (!top) return;
-    shareListingToChat(top).catch(() => {});
+    if (!top) return false;
+    return shareListingToChat(top);
   }, [stackRef]);
 
   return { handleSwipe, handleUndo, matchState, lastSwipeRef, handleShareToChat };

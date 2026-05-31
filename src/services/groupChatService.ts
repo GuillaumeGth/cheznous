@@ -5,7 +5,7 @@
  * Firestore path: groups/{groupId}/messages/{auto}
  */
 import {
-  collection, addDoc, setDoc, doc, deleteField, getDocs, query, where,
+  collection, addDoc, setDoc, deleteDoc, doc, deleteField, getDocs, query, where,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Listing } from '@/types';
@@ -68,19 +68,25 @@ async function buildReactionsFromSwipes(
   return reactions;
 }
 
-export async function shareListingToChat(listing: Listing): Promise<void> {
+// Returns true once the listing_share message is written, false if there's no
+// active group or the write fails — the caller surfaces this to the user.
+export async function shareListingToChat(listing: Listing): Promise<boolean> {
   const { firebaseUser, profile, groupId } = useAuthStore.getState();
-  if (!groupId || !firebaseUser) return;
-  const reactions = await buildReactionsFromSwipes(groupId, listing.id);
-  await addDoc(collection(db, 'groups', groupId, 'messages'), {
-    type: 'listing_share',
-    user_id: firebaseUser.uid,
-    display_name: profile?.display_name ?? 'Utilisateur',
-    text: "Qu'est-ce que vous en pensez ?",
-    created_at: new Date().toISOString(),
-    listing,
-    reactions,
-  });
+  if (!groupId || !firebaseUser) return false;
+  try {
+    const reactions = await buildReactionsFromSwipes(groupId, listing.id);
+    await addDoc(collection(db, 'groups', groupId, 'messages'), {
+      type: 'listing_share',
+      user_id: firebaseUser.uid,
+      display_name: profile?.display_name ?? 'Utilisateur',
+      text: "Qu'est-ce que vous en pensez ?",
+      created_at: new Date().toISOString(),
+      listing,
+      reactions,
+    });
+  } catch {
+    return false;
+  }
   getMemberTokens(groupId, firebaseUser.uid).then((tokens) =>
     tokens.forEach((token) =>
       sendPushNotification(
@@ -91,6 +97,16 @@ export async function shareListingToChat(listing: Listing): Promise<void> {
       ).catch(() => {}),
     ),
   );
+  return true;
+}
+
+// Removes a message from the group. Firestore rules restrict this to group
+// members; the UI only offers it on the sender's own messages.
+export async function deleteMessage(
+  groupId: string,
+  messageId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, 'groups', groupId, 'messages', messageId));
 }
 
 // reaction = null removes the user's vote (toggle-off).

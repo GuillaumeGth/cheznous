@@ -69,6 +69,25 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
+    // Group chat messages — members of the parent group only.
+    match /groups/{groupId}/messages/{messageId} {
+      function isGroupMember() {
+        let g = get(/databases/$(database)/documents/groups/$(groupId)).data;
+        return request.auth != null && (
+          (g.member_ids != null && request.auth.uid in g.member_ids) ||
+          g.user1_id == request.auth.uid ||
+          g.user2_id == request.auth.uid
+        );
+      }
+      // Members can read history, react to any message (setReaction merges into
+      // other members' docs), and remove messages.
+      allow read, update, delete: if isGroupMember();
+      // A member sends as themselves; system messages carry a null user_id.
+      allow create: if isGroupMember()
+        && (request.resource.data.user_id == request.auth.uid
+            || request.resource.data.user_id == null);
+    }
+
     // Chat messages for a matched listing — members of the couple only
     match /matches/{matchId}/messages/{messageId} {
       allow read: if request.auth != null;

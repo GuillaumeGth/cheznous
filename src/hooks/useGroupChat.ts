@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 import {
   sendGroupMessage,
   setReaction,
+  deleteMessage as deleteGroupMessage,
 } from '@/services/groupChatService';
 
 export function useGroupChat(groupId: string | null) {
@@ -29,10 +30,16 @@ export function useGroupChat(groupId: string | null) {
       collection(db, 'groups', groupId, 'messages'),
       orderBy('created_at', 'asc'),
     );
-    return onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as GroupMessage)));
-      setIsLoading(false);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as GroupMessage)));
+        setIsLoading(false);
+      },
+      // Si le listener échoue (ex: règles Firestore refusant la lecture), on
+      // arrête le loader au lieu de tourner indéfiniment.
+      () => setIsLoading(false),
+    );
   }, [groupId]);
 
   const sendMessage = useCallback(async (text: string) => {
@@ -50,5 +57,10 @@ export function useGroupChat(groupId: string | null) {
     await setReaction(groupId, messageId, firebaseUser.uid, reaction);
   }, [groupId]);
 
-  return { messages, isLoading, sendMessage, reactToMessage };
+  const deleteMessage = useCallback(async (messageId: string) => {
+    if (!groupId) return;
+    await deleteGroupMessage(groupId, messageId);
+  }, [groupId]);
+
+  return { messages, isLoading, sendMessage, reactToMessage, deleteMessage };
 }

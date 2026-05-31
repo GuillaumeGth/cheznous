@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -92,6 +92,7 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, 
   return (
     <GestureDetector gesture={pan}>
       <Animated.View style={[styles.card, cardStyle]}>
+       <Pressable style={styles.pressable} onPress={onInfoPress} disabled={!isTop || !onInfoPress}>
         {/* Image carousel */}
         <View style={styles.imageContainer}>
           <Image
@@ -163,6 +164,7 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, 
           ) : null}
 
         </View>
+       </Pressable>
 
         {isTop && (
           <View style={styles.cardActions}>
@@ -210,6 +212,9 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
     overflow: 'hidden',
+  },
+  pressable: {
+    flex: 1,
   },
   imageContainer: {
     flex: 1,

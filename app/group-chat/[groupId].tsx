@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import {
-  View, Text, FlatList, TextInput, TouchableOpacity,
+  View, Text, FlatList, TextInput, TouchableOpacity, Pressable,
   KeyboardAvoidingView, Platform, Image, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/authStore';
 import { useGroupById } from '@/hooks/useGroupById';
 import { useGroupChat } from '@/hooks/useGroupChat';
-import { GroupMessage } from '@/types';
+import ConfirmSheet from '@/components/ConfirmSheet';
+import MemberAvatars, { AvatarMember } from '@/components/MemberAvatars';
+import ListingDetailSheet from '@/components/ListingDetailSheet';
+import { GroupMessage, Listing } from '@/types';
 import { styles } from '@/styles/groupChatScreen.styles';
 
 const SAFE_EDGES = ['bottom'] as const;
@@ -96,11 +99,17 @@ type ListingShareProps = {
   isMine: boolean;
   myUid: string;
   onReact: (messageId: string, reaction: 'like' | 'dislike' | null) => void;
+  onLongPress: (messageId: string) => void;
+  onOpen: (listing: Listing) => void;
 };
 
 const ListingShareMessage = memo(function ListingShareMessage({
-  message, isMine, myUid, onReact,
+  message, isMine, myUid, onReact, onLongPress, onOpen,
 }: ListingShareProps) {
+  const handleLongPress = useCallback(() => onLongPress(message.id), [onLongPress, message.id]);
+  const handlePress = useCallback(() => {
+    if (message.listing) onOpen(message.listing);
+  }, [onOpen, message.listing]);
   const listing = message.listing;
   if (!listing) return null;
 
@@ -113,7 +122,12 @@ const ListingShareMessage = memo(function ListingShareMessage({
   return (
     <View style={styles.shareGroup}>
       {!isMine && <Text style={styles.shareAuthor}>{message.display_name}</Text>}
-      <View style={[styles.shareCard, isMine ? styles.shareCardMine : styles.shareCardTheirs]}>
+      <Pressable
+        onPress={handlePress}
+        onLongPress={isMine ? handleLongPress : undefined}
+        delayLongPress={350}
+        style={[styles.shareCard, isMine ? styles.shareCardMine : styles.shareCardTheirs]}
+      >
         <Text style={styles.shareCaption}>{message.text}</Text>
         <View style={styles.listingRow}>
           {thumb ? (
@@ -136,7 +150,7 @@ const ListingShareMessage = memo(function ListingShareMessage({
           onReact={onReact}
         />
         <Text style={styles.shareTime}>{formatTime(message.created_at)}</Text>
-      </View>
+      </Pressable>
     </View>
   );
 });
@@ -145,23 +159,29 @@ type TextMessageProps = {
   message: GroupMessage;
   isMine: boolean;
   showAuthor: boolean;
+  onLongPress: (messageId: string) => void;
 };
 
-const TextMessage = memo(function TextMessage({ message, isMine, showAuthor }: TextMessageProps) {
+const TextMessage = memo(function TextMessage({ message, isMine, showAuthor, onLongPress }: TextMessageProps) {
+  const handleLongPress = useCallback(() => onLongPress(message.id), [onLongPress, message.id]);
   return (
     <View style={styles.messageGroup}>
       {!isMine && showAuthor && (
         <Text style={styles.authorLabel}>{message.display_name}</Text>
       )}
       <View style={[styles.messageRow, isMine ? styles.messageRowMine : styles.messageRowTheirs]}>
-        <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
+        <Pressable
+          onLongPress={isMine ? handleLongPress : undefined}
+          delayLongPress={350}
+          style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}
+        >
           <Text style={isMine ? styles.bubbleTextMine : styles.bubbleTextTheirs}>
             {message.text}
           </Text>
           <Text style={[styles.bubbleTime, isMine ? styles.bubbleTimeMine : styles.bubbleTimeTheirs]}>
             {formatTime(message.created_at)}
           </Text>
-        </View>
+        </Pressable>
       </View>
     </View>
   );
@@ -177,16 +197,28 @@ export default function GroupChatScreen() {
   const { groupId } = useLocalSearchParams<{ groupId: string }>();
   const router = useRouter();
   const myUid = useAuthStore((s) => s.firebaseUser?.uid ?? '');
+  const myName = useAuthStore((s) => s.profile?.display_name ?? 'Moi');
+  const myPhoto = useAuthStore((s) => s.profile?.photo_url);
 
   const { group, memberProfiles, loading: groupLoading } = useGroupById(groupId ?? null);
-  const { messages, isLoading, sendMessage, reactToMessage } = useGroupChat(groupId ?? null);
+  const { messages, isLoading, sendMessage, reactToMessage, deleteMessage } = useGroupChat(groupId ?? null);
 
   const [inputText, setInputText] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [detailListing, setDetailListing] = useState<Listing | null>(null);
   const flatListRef = useRef<FlatList<MessageItem>>(null);
 
   const groupName = group?.name ?? 'Chat du groupe';
-  const memberCount = group?.member_ids?.length ?? memberProfiles.length + 1;
-  const subtitle = memberCount === 1 ? '1 membre' : `${memberCount} membres`;
+
+  // Tous les membres (soi inclus) pour les avatars du header.
+  const avatarMembers = useMemo<AvatarMember[]>(() => {
+    const list: AvatarMember[] = [];
+    if (myUid) list.push({ uid: myUid, displayName: myName, photoUrl: myPhoto ?? null });
+    memberProfiles.forEach((p) =>
+      list.push({ uid: p.id, displayName: p.display_name, photoUrl: p.photo_url }),
+    );
+    return list;
+  }, [myUid, myName, myPhoto, memberProfiles]);
 
   // Scroll to bottom on new messages only, not on full re-renders.
   const prevLengthRef = useRef(0);
@@ -207,6 +239,20 @@ export default function GroupChatScreen() {
   const handleReact = useCallback((messageId: string, reaction: 'like' | 'dislike' | null) => {
     reactToMessage(messageId, reaction);
   }, [reactToMessage]);
+
+  // Long-press a message you sent → confirm before removing it for everyone.
+  const handleLongPress = useCallback((messageId: string) => {
+    setPendingDelete(messageId);
+  }, []);
+  const cancelDelete = useCallback(() => setPendingDelete(null), []);
+  const confirmDelete = useCallback(() => {
+    const id = pendingDelete;
+    setPendingDelete(null);
+    if (id) deleteMessage(id).catch(() => {});
+  }, [pendingDelete, deleteMessage]);
+
+  const handleOpenListing = useCallback((listing: Listing) => setDetailListing(listing), []);
+  const closeListing = useCallback(() => setDetailListing(null), []);
 
   // Pure derivation — no side-effects. showAuthor = first message from this
   // sender in a consecutive run, so the name isn't repeated on every bubble.
@@ -229,11 +275,20 @@ export default function GroupChatScreen() {
           isMine={isMine}
           myUid={myUid}
           onReact={handleReact}
+          onLongPress={handleLongPress}
+          onOpen={handleOpenListing}
         />
       );
     }
-    return <TextMessage message={msg} isMine={isMine} showAuthor={showAuthor} />;
-  }, [myUid, handleReact]);
+    return (
+      <TextMessage
+        message={msg}
+        isMine={isMine}
+        showAuthor={showAuthor}
+        onLongPress={handleLongPress}
+      />
+    );
+  }, [myUid, handleReact, handleLongPress, handleOpenListing]);
 
   const keyExtractor = useCallback((item: MessageItem) => item.msg.id, []);
 
@@ -255,8 +310,8 @@ export default function GroupChatScreen() {
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle} numberOfLines={1}>{groupName}</Text>
-          <Text style={styles.headerSubtitle}>{subtitle}</Text>
         </View>
+        <MemberAvatars members={avatarMembers} />
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={KAV_BEHAVIOR} keyboardVerticalOffset={0}>
@@ -297,6 +352,18 @@ export default function GroupChatScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <ConfirmSheet
+        visible={pendingDelete !== null}
+        title="Supprimer le message ?"
+        message="Ce message sera retiré de la conversation pour tout le groupe."
+        confirmLabel="Supprimer"
+        confirmDestructive
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+      />
+
+      <ListingDetailSheet listing={detailListing} onClose={closeListing} />
     </SafeAreaView>
   );
 }

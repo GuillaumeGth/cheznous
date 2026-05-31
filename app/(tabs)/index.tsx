@@ -18,6 +18,7 @@ import ListingDetailSheet from '@/components/ListingDetailSheet';
 import NoteModal from '@/components/NoteModal';
 import ConfettiOverlay from '@/components/ConfettiOverlay';
 import MemberAvatars from '@/components/MemberAvatars';
+import Toast, { ToastType } from '@/components/Toast';
 import { GroupMember, Listing } from '@/types';
 import { styles } from '@/styles/swipeScreen.styles';
 
@@ -61,6 +62,7 @@ export default function SwipeScreen() {
   const { notes, saveNote } = useNotes(stack[0], firstColocId);
 
   const [modal, setModal] = useState<ActiveModal | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   useNewListingsNotify();
 
@@ -80,7 +82,6 @@ export default function SwipeScreen() {
     () => searchLists.find((l) => l.id === activeListId),
     [searchLists, activeListId],
   );
-  const activeListName = activeList?.name;
   const activeListCover = activeList?.cover_photo_url ?? null;
 
   const members = useMemo<GroupMember[]>(() => {
@@ -109,6 +110,13 @@ export default function SwipeScreen() {
     const top = stackRef.current[0];
     if (top) setModal({ type: 'detail', listing: top });
   }, [stackRef]);
+  const handleSharePress = useCallback(async () => {
+    const ok = await handleShareToChat();
+    setToast(ok
+      ? { message: 'Annonce partagée dans le chat', type: 'success' }
+      : { message: "Le partage a échoué, réessaie", type: 'error' });
+  }, [handleShareToChat]);
+  const handleToastHide = useCallback(() => setToast(null), []);
   const handleNotePress = useCallback(() => setModal({ type: 'note' }), []);
   const handleFilterPress = useCallback(() => setModal({ type: 'filter' }), []);
   const handleCreateSearch = useCallback(() => setModal({ type: 'filter', adding: true }), []);
@@ -127,29 +135,21 @@ export default function SwipeScreen() {
             </View>
           )}
           <View style={styles.headerText}>
-          <Text style={styles.appName} numberOfLines={1}>{group?.name ?? 'Chez Nous'}</Text>
-          {group && (
-            <View style={styles.partnerStatusRow}>
-              {hasColocs ? (
-                <MemberAvatars members={members} />
-              ) : (
-                <Ionicons name="time-outline" size={12} color="#888" />
-              )}
-              <Text style={styles.partnerStatus}>
-                {hasColocs
-                  ? `En recherche à ${group.member_ids.length}`
-                  : 'En attente des colocs'}
-              </Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.appName} numberOfLines={1}>{group?.name ?? 'Chez Nous'}</Text>
+              {hasColocs && <MemberAvatars members={members} />}
             </View>
-          )}
+            {group && !hasColocs && (
+              <View style={styles.partnerStatusRow}>
+                <Ionicons name="time-outline" size={12} color="#888" />
+                <Text style={styles.partnerStatus}>En attente des colocs</Text>
+              </View>
+            )}
           </View>
         </View>
         <TouchableOpacity onPress={handleFilterPress}>
           <LinearGradient colors={FILTER_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.filterBtn}>
             <Ionicons name="options-outline" size={16} color="#4A6CF7" />
-            <Text style={styles.filterLabel} numberOfLines={1}>
-              {activeListName ?? 'Filtres'}
-            </Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -217,7 +217,7 @@ export default function SwipeScreen() {
 
       {/* Share button — left edge, vertically centred in cards area */}
       {stack.length > 0 && (
-        <TouchableOpacity style={styles.floatingShareBtn} onPress={handleShareToChat}>
+        <TouchableOpacity style={styles.floatingShareBtn} onPress={handleSharePress}>
           <LinearGradient colors={SHARE_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.floatingShareInner}>
             <Ionicons name="chatbubble-ellipses-outline" size={22} color="#fff" />
           </LinearGradient>
@@ -249,6 +249,12 @@ export default function SwipeScreen() {
         listingTitle={stack[0]?.title ?? ''}
         onSave={saveNote}
         onClose={handleModalClose}
+      />
+      <Toast
+        message={toast?.message ?? ''}
+        type={toast?.type}
+        visible={!!toast}
+        onHide={handleToastHide}
       />
     </SafeAreaView>
   );

@@ -1,19 +1,53 @@
 import { Listing, SearchFilters } from '@/types';
+import { queryClient } from '@/lib/queryClient';
 import { alog } from '@/lib/adminLogger';
 
 // Number of listings fetched per API call / per page. Keep useListings'
 // short-page detection in sync by importing this constant there.
 export const PAGE_SIZE = 50;
 
+// How long a stream.estate page stays fresh in the cache (>= 1h by design).
+// Within this window a repeat (filters, page) request is served from cache — no
+// HTTP call — which protects the external API's rate limit / quota. Only a
+// filter change invalidates it: the filter set is part of the query key, so
+// different filters miss the cache and trigger a fresh fetch, while identical
+// filters keep reusing the cached pages for the whole window.
+const STREAM_CACHE_MS = 60 * 60 * 1000; // 1h
+// Keep evicted entries around a bit longer so toggling filters back and forth
+// still hits the cache instead of re-fetching.
+const STREAM_GC_MS = 2 * 60 * 60 * 1000; // 2h
+
 // Configure your API key here
 const STREAM_ESTATE_API_KEY = process.env.EXPO_PUBLIC_STREAM_ESTATE_KEY ?? '';
 const FLUXIMMO_API_KEY = process.env.EXPO_PUBLIC_FLUXIMMO_KEY ?? '';
 
+// Deterministic cache key for a filter set (key order + arrondissements order
+// normalised so equivalent filters share a cache entry).
+function streamFiltersKey(filters: SearchFilters): string {
+  return JSON.stringify({
+    t: filters.transaction_type,
+    a: [...filters.arrondissements].sort((x, y) => x - y),
+    pmin: filters.price_min,
+    pmax: filters.price_max,
+    smin: filters.surface_min,
+    smax: filters.surface_max,
+    rmin: filters.rooms_min,
+  });
+}
+
 export async function fetchListings(filters: SearchFilters, page = 1): Promise<Listing[]> {
-  if (STREAM_ESTATE_API_KEY) {
-    return fetchFromStreamEstate(filters, page);
+  if (!STREAM_ESTATE_API_KEY) {
+    return generateMockListings(filters, page);
   }
-  return generateMockListings(filters, page);
+  // Cache + dedupe the external call through TanStack: identical (filters, page)
+  // requests inside STREAM_CACHE_MS reuse the cached response, and concurrent
+  // callers share a single in-flight request.
+  return queryClient.fetchQuery({
+    queryKey: ['stream-listings', streamFiltersKey(filters), page],
+    queryFn: () => fetchFromStreamEstate(filters, page),
+    staleTime: STREAM_CACHE_MS,
+    gcTime: STREAM_GC_MS,
+  });
 }
 
 // stream.estate transactionType codes. '1' = location is the value the app has
