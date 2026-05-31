@@ -7,13 +7,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npx expo start          # start dev server (Expo Go or dev build)
-npx expo start --ios    # iOS simulator
-npx expo start --android
-npx expo start --web
+npm start                # = expo start (dev server, Expo Go or dev build)
+npm run ios              # = expo run:ios (native build + iOS simulator/device)
+npm run android          # = expo run:android
+npm run web              # = expo start --web
 ```
 
-There is no lint or test script configured.
+Tests run with Jest (`jest-expo`):
+
+```bash
+npm test                # run the Jest suite
+```
+
+There is no lint script configured.
 
 ## Rules
 
@@ -35,24 +41,34 @@ app/
   index.tsx            ← redirect hub (see flow below)
   (auth)/
     index.tsx          ← email/password + Google sign-in, creates Firestore user doc
-    couple.tsx         ← create or join a couple via invite code
+    invite.tsx         ← create or join a group via invite code
   (tabs)/
     index.tsx          ← swipe screen (main feature)
     matches.tsx        ← matched listings list
+    chat.tsx           ← conversations list
     profile.tsx        ← settings, notification prefs, sign out
   chat/
-    [matchId].tsx      ← per-match group chat (pushes over the tab bar)
+    [matchId].tsx      ← per-match chat (pushes over the tab bar)
+  group-chat/
+    [groupId].tsx      ← per-group chat
+  groups/
+    index.tsx          ← groups list
+    [id].tsx           ← group detail (members, invitations)
 ```
 
-**Navigation flow:** `app/index.tsx` reads `authStore` and redirects:
+**Navigation flow:** `app/index.tsx` reads `authStore` (atomic selectors) and redirects via `<Redirect>`:
+- `isLoading` → loading spinner
 - No Firebase user → `/(auth)`
-- User but no `coupleId` → `/(auth)/couple`
-- User + coupleId → `/(tabs)`
+- User but no `groupId` → `/(auth)/invite`
+- User + `groupId` → `/(tabs)`
 
 ### State management (Zustand)
 
-- `authStore` — `firebaseUser`, `profile` (UserProfile), `coupleId`, `isLoading`. Populated by the `onAuthStateChanged` listener in `app/_layout.tsx`.
-- `filterStore` — `filters` (SearchFilters), `syncFilters(coupleId, filters)` which writes to Firestore. Filters are loaded from the couple doc via `useCouple` on mount.
+Stores live in `src/stores/`.
+
+- `authStore` — `firebaseUser`, `profile` (UserProfile), `groupId`, `isLoading` (+ setters and `reset`). Populated by the `onAuthStateChanged` listener in `app/_layout.tsx`. `groupId` is the active group (multi-group).
+- `filterStore` — `filters` (SearchFilters), `syncFilters(...)` which writes to Firestore. Filters are loaded from the group doc via `useCouple` on mount.
+- `listingsStore` — swipe-stack state.
 
 ### Firebase / Firestore
 
@@ -62,18 +78,23 @@ Singleton init in `src/lib/firebase.ts` with `experimentalForceLongPolling: true
 
 | Collection | Doc ID | Notes |
 |---|---|---|
-| `users` | `{uid}` | UserProfile; push_token stored here |
-| `couples` | auto | `user1_id`, `user2_id` (null until partner joins), `invite_code`, `filters` |
-| `listings` | `{listingId}` | Cached by the first client to fetch; both partners read from here |
-| `swipes` | `{uid}_{listingId}` | One doc per user per listing |
-| `matches` | `{coupleId}_{listingId}` | Created client-side when the second partner right-swipes |
-| `matches/{id}/messages` | auto | `ChatMessage`; subcollection — one doc per chat message |
+| `users` | `{uid}` | UserProfile; `push_token` stored here. Group membership in `couple_id` field (= active groupId) |
+| `groups` | auto | `name`, `member_ids[]`, `invite_code`, `search_lists[]` (each list has its own `filters`, optional `member_ids` sub-group, `cover_photo_url`), `active_search_list_id`. `user1_id`/`user2_id`/`filters` are legacy |
+| `groups/{id}/messages` | auto | `GroupMessage`; group chat subcollection (text / system / listing_share) |
+| `notes` | `{uid}_{listingId}` | Per-user note on a listing; all members' notes are read together (`useListingNotes`) |
+| `group_invitations` | auto | `GroupInvitation` — pending/accepted/rejected |
+| `follows` | `{follower_id}_{following_id}` | Follow relationships between users |
+| `listings` | `{listingId}` | Cached by the first client to fetch; all members read from here |
+| `swipes` | `{uid}_{listId}_{listingId}` | One doc per user **per search list** per listing (`user_id`, `couple_id`, `search_list_id`, `listing_id`, `direction`) |
+| `matches` | `{groupId}_{listId}_{listingId}` | Created client-side (`couple_id`, `search_list_id`, `listing_id`, `listing`, `matched_at`, `status`) |
+| `matches/{id}/messages` | auto | `ChatMessage`; per-match chat subcollection |
+| `crash_reports` | auto | Client error reports (`src/lib/errorReporting.ts`) |
 
-**Match logic** (in `app/(tabs)/index.tsx → checkForMatch`): after a right-swipe, query `swipes` for a right-swipe by the partner on the same listing. If found, write the match doc. This runs entirely client-side.
+**Match logic** (`src/hooks/useSwipeActions.ts → checkForMatch`): swipes and matches are **scoped by `search_list_id`** — the same listing can be swiped independently in two different search lists. After a right-swipe, the targeted participants are the search list's `member_ids` sub-group (or all group members if unset). With `min_likes: 0` a match needs **unanimity** among targeted participants; otherwise it needs `min_likes` total likes. Solo lists (only the current user) match immediately. Runs entirely client-side. `handleUndo` deletes the swipe (and any match) for that list.
 
 ### Listings pipeline
 
-`src/services/listingsService.ts` — fetches from **stream.estate** if `EXPO_PUBLIC_STREAM_ESTATE_KEY` is set, otherwise falls back to a mock generator. Results are paginated (10 per page). `useListings` hook caches each fetched listing into Firestore so both partners see the same data. Stack pre-fetches when ≤ 3 cards remain.
+`src/services/listingsService.ts` — fetches from **stream.estate** if `EXPO_PUBLIC_STREAM_ESTATE_KEY` is set, otherwise falls back to a mock generator. Results are paginated (10 per page). `useListings` hook caches each fetched listing into Firestore so all group members see the same data. Stack pre-fetches when ≤ 3 cards remain.
 
 **`SearchFilters` fields** — convention: `0` means "no restriction" for numeric bounds.
 
@@ -86,6 +107,9 @@ Singleton init in `src/lib/firebase.ts` with `experimentalForceLongPolling: true
 | `surface_min` | `number` | `0` | `surfaceMin` in stream.estate; ignored when 0 |
 | `surface_max` | `number` | `0` | `surfaceMax` in stream.estate; ignored when 0 |
 | `rooms_min` | `number` | `0` | `roomMin` in stream.estate; ignored when 0 |
+| `min_likes` | `number` | `0` | Min members who must like a listing to match; `0` = unanimity |
+
+`SearchFilters` live per **search list** (`SearchList.filters`), not per group. Each group has multiple search lists with their own filters and optional member sub-group; the top-level `Group.filters` field is legacy.
 
 ### Chat
 
