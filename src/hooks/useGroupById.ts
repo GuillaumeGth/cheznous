@@ -3,6 +3,7 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Group, UserProfile } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
+import { alog } from '@/lib/adminLogger';
 
 /**
  * Souscrit à un groupe précis par son id et résout les profils des autres
@@ -23,6 +24,7 @@ export function useGroupById(groupId: string | null) {
     setLoading(true);
 
     const unsub = onSnapshot(doc(db, 'groups', groupId), async (snap) => {
+      alog('Firestore:onSnapshot groups (ById)', { groupId });
       if (!snap.exists()) {
         setGroup(null);
         setMemberProfiles([]);
@@ -34,6 +36,7 @@ export function useGroupById(groupId: string | null) {
 
       const { firebaseUser } = useAuthStore.getState();
       const others = (groupData.member_ids ?? []).filter((id) => id !== firebaseUser?.uid);
+      alog('Firestore:getDoc users (ById members)', { others });
       const profiles = await Promise.all(
         others.map(async (id) => {
           const s = await getDoc(doc(db, 'users', id));

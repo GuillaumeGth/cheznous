@@ -8,6 +8,8 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useMatches } from '@/hooks/useMatches';
 import { useLikes } from '@/hooks/useLikes';
+import { useGroup } from '@/hooks/useGroup';
+import { useAuthStore } from '@/stores/authStore';
 import MatchCard from '@/components/MatchCard';
 import LikeCard from '@/components/LikeCard';
 import { Match } from '@/types';
@@ -15,6 +17,16 @@ import { Match } from '@/types';
 export default function MatchesScreen() {
   const { matches, isLoading: matchesLoading } = useMatches();
   const { likes, isLoading: likesLoading } = useLikes();
+  const { memberProfiles } = useGroup();
+  const myUid = useAuthStore((s) => s.firebaseUser?.uid);
+  const myProfile = useAuthStore((s) => s.profile);
+
+  // All members (self + others) — stable reference, used by NotesSection in each card.
+  const allMembers = useMemo(() => {
+    const others = memberProfiles.map((p) => ({ id: p.id, display_name: p.display_name }));
+    if (myProfile) return [{ id: myProfile.id, display_name: myProfile.display_name }, ...others];
+    return others;
+  }, [memberProfiles, myProfile]);
 
   const matchedIds = useMemo(() => new Set(matches.map((m) => m.listing_id)), [matches]);
   const personalLikes = useMemo(
@@ -60,7 +72,13 @@ export default function MatchesScreen() {
             </View>
           ) : (
             matches.map((match) => (
-              <MatchCard key={match.id} match={match} onStatusChange={handleStatusChange} />
+              <MatchCard
+                key={match.id}
+                match={match}
+                onStatusChange={handleStatusChange}
+                members={allMembers}
+                myUid={myUid}
+              />
             ))
           )}
         </View>
@@ -78,7 +96,7 @@ export default function MatchesScreen() {
             </View>
           ) : (
             personalLikes.map((like) => (
-              <LikeCard key={like.id} like={like} />
+              <LikeCard key={like.id} like={like} members={allMembers} myUid={myUid} />
             ))
           )}
         </View>

@@ -1,4 +1,5 @@
 import { Listing, SearchFilters } from '@/types';
+import { alog } from '@/lib/adminLogger';
 
 // Number of listings fetched per API call / per page. Keep useListings'
 // short-page detection in sync by importing this constant there.
@@ -23,6 +24,7 @@ const STREAM_TRANSACTION_TYPE: Record<SearchFilters['transaction_type'], string>
 };
 
 async function fetchFromStreamEstate(filters: SearchFilters, page: number): Promise<Listing[]> {
+  alog('HTTP:GET stream.estate', { page, filters });
   const params = new URLSearchParams({
     transactionType: STREAM_TRANSACTION_TYPE[filters.transaction_type] ?? '1',
     'propertyTypes[]': '0',
@@ -114,6 +116,7 @@ const LISTING_IMAGES = [
 ];
 
 function generateMockListings(filters: SearchFilters, page: number): Listing[] {
+  alog('MOCK:generateListings', { page });
   const arrondissements = filters.arrondissements.length > 0
     ? filters.arrondissements
     : Array.from({ length: 20 }, (_, i) => i + 1);

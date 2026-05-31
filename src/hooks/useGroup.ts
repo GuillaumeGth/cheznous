@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { Group, UserProfile } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { useFilterStore, DEFAULT_LIST } from '@/stores/filterStore';
+import { alog } from '@/lib/adminLogger';
 
 function deriveMemberIds(data: Group): string[] {
   if (data.member_ids?.length) return data.member_ids;
@@ -19,6 +20,7 @@ export function useGroup() {
     if (!groupId) return;
 
     const unsub = onSnapshot(doc(db, 'groups', groupId), (snap) => {
+      alog('Firestore:onSnapshot groups', { groupId });
       if (!snap.exists()) return;
       const data = { id: snap.id, ...snap.data() } as Group;
       const normalized = { ...data, member_ids: deriveMemberIds(data) };
@@ -37,6 +39,7 @@ export function useGroup() {
 
       const { firebaseUser } = useAuthStore.getState();
       const otherIds = normalized.member_ids.filter((id) => id !== firebaseUser?.uid);
+      alog('Firestore:getDoc users (members)', { otherIds });
       Promise.all(
         otherIds.map((id) =>
           getDoc(doc(db, 'users', id)).then((s) =>

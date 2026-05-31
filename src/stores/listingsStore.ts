@@ -3,6 +3,7 @@ import { Listing, SearchFilters } from '@/types';
 import { fetchListings, PAGE_SIZE } from '@/services/listingsService';
 import { db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { alog } from '@/lib/adminLogger';
 
 const REFRESH_THROTTLE_MS = 30 * 60 * 1000;
 
@@ -37,12 +38,14 @@ export const useListingsStore = create<ListingsState>((set, get) => ({
     // against both concurrent callers and the no-more-results loop.
     const { isLoading, hasMore, page } = get();
     if (isLoading || !hasMore) return;
+    alog('listingsStore:loadMore', { page, filtersKey: JSON.stringify(filters).slice(0, 80) });
     set({ isLoading: true });
     try {
       const listings = await fetchListings(filters, page);
       // A short/empty page means we've hit the end — stop auto-paginating.
       if (listings.length < PAGE_SIZE) set({ hasMore: false });
       if (listings.length > 0) {
+        alog('Firestore:setDoc listings (batch)', { count: listings.length });
         await Promise.all(
           listings.map((l) => setDoc(doc(db, 'listings', l.id), l, { merge: true })),
         );

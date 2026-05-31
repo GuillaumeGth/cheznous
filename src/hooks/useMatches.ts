@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Match } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
+import { alog } from '@/lib/adminLogger';
 
 export function useMatches() {
   const groupId = useAuthStore((s) => s.groupId);
@@ -24,6 +25,7 @@ export function useMatches() {
     const unsub = onSnapshot(
       q,
       (snap) => {
+        alog('Firestore:onSnapshot matches', { groupId, count: snap.docs.length });
         const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Match));
         all.sort((a, b) => b.matched_at.localeCompare(a.matched_at));
         setMatches(all);

@@ -3,6 +3,9 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Match } from '@/types';
+import NotesSection from '@/components/NotesSection';
+
+type Member = { id: string; display_name: string };
 
 const STATUS_LABELS: Record<Match['status'], string> = {
   new: 'Nouveau match',
@@ -21,9 +24,11 @@ const STATUS_COLORS: Record<Match['status'], string> = {
 type Props = {
   match: Match;
   onStatusChange: (id: string, status: Match['status']) => void;
+  members: Member[];
+  myUid: string | undefined;
 };
 
-export default function MatchCard({ match, onStatusChange }: Props) {
+export default function MatchCard({ match, onStatusChange, members, myUid }: Props) {
   const { listing, status, matched_at } = match;
   if (!listing) return null;
 
@@ -89,6 +94,7 @@ export default function MatchCard({ match, onStatusChange }: Props) {
             <Text style={styles.statusBtnText}>Marquer contacté</Text>
           </TouchableOpacity>
         )}
+        <NotesSection listingId={match.listing_id} members={members} myUid={myUid} />
       </View>
     </View>
   );

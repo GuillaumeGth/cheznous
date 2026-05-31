@@ -65,6 +65,19 @@ export const styles = StyleSheet.create({
     width: 54, height: 54, borderRadius: 27,
     alignItems: 'center', justifyContent: 'center',
   },
+  floatingShareBtn: {
+    position: 'absolute',
+    left: 8,
+    top: '50%',
+    marginTop: -27,
+    width: 54, height: 54, borderRadius: 27,
+    shadowColor: '#4A6CF7', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
+  },
+  floatingShareInner: {
+    width: 54, height: 54, borderRadius: 27,
+    alignItems: 'center', justifyContent: 'center',
+  },
   matchTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   matchBanner: {
     position: 'absolute',

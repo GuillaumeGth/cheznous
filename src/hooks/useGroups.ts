@@ -5,6 +5,7 @@ import {
 import { db } from '@/lib/firebase';
 import { Group } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
+import { alog } from '@/lib/adminLogger';
 
 /**
  * Liste réactive de tous les groupes dont l'utilisateur courant est membre.
@@ -29,6 +30,7 @@ export function useGroups(): { groups: Group[]; loading: boolean } {
       where('member_ids', 'array-contains', uid),
     );
     const unsub = onSnapshot(q, (snap) => {
+      alog('Firestore:onSnapshot groups (list)', { uid, count: snap.docs.length });
       setGroups(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Group)));
       setLoading(false);
     });

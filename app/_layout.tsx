@@ -9,6 +9,7 @@ import { auth, db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { registerPushToken, setupNotificationHandler } from '@/lib/notifications';
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types';
+import { alog } from '@/lib/adminLogger';
 
 export default function RootLayout() {
   // No store subscription: RootLayout renders a static tree. Setters are read
@@ -23,6 +24,7 @@ export default function RootLayout() {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user) {
+        alog('Firestore:getDoc users (_layout onAuthStateChanged)', { uid: user.uid, email: user.email });
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (snap.exists()) {
           const profile = snap.data() as any;

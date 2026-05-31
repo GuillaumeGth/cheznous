@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db } from '@/lib/firebase';
 import { Listing } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
+import { alog } from '@/lib/adminLogger';
 
 export type Like = {
   id: string;
@@ -35,8 +36,10 @@ export function useLikes() {
           .map((d) => d.data())
           .filter((s) => s.direction === 'right');
 
+        alog('Firestore:onSnapshot swipes (useLikes)', { uid, totalSwipes: snap.docs.length, rightSwipes: rightSwipes.length });
         const withListings = await Promise.all(
           rightSwipes.map(async (swipe) => {
+            alog('Firestore:getDoc listings (useLikes per-like)', { listing_id: swipe.listing_id });
             const listingSnap = await getDoc(doc(db, 'listings', swipe.listing_id));
             return {
               id: `${swipe.user_id}_${swipe.search_list_id ?? 'default'}_${swipe.listing_id}`,

@@ -41,6 +41,22 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
 
   const [activeTab, setActiveTab] = useState(activeListId);
   const [local, setLocal] = useState<SearchFilters>(DEFAULT_FILTERS);
+
+  const activeListObj = useMemo(
+    () => searchLists.find((l) => l.id === activeTab),
+    [searchLists, activeTab],
+  );
+  const totalMembers = useMemo(
+    () => (activeListObj?.member_ids?.length ?? members.length) + 1,
+    [activeListObj, members.length],
+  );
+  const likesOptions = useMemo(() => [
+    { label: 'Tous', value: 0 },
+    ...Array.from({ length: totalMembers - 1 }, (_, i) => ({
+      label: String(i + 1),
+      value: i + 1,
+    })),
+  ], [totalMembers]);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newMemberIds, setNewMemberIds] = useState<string[]>([]);
@@ -448,6 +464,30 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
               ))}
             </View>
           </Section>
+
+          {/* Accord pour matcher (groupes de 2+ personnes) */}
+          {totalMembers >= 2 && (
+            <Section title="Accord pour matcher">
+              <Text style={styles.hint}>
+                {(local.min_likes ?? 0) === 0
+                  ? 'Unanimité — tous les membres doivent aimer le bien'
+                  : `${local.min_likes} like${local.min_likes > 1 ? 's' : ''} suffisent sur ${totalMembers}`}
+              </Text>
+              <View style={styles.steps}>
+                {likesOptions.map(({ label, value }) => (
+                  <TouchableOpacity
+                    key={value}
+                    style={[styles.step, (local.min_likes ?? 0) === value && styles.stepActive]}
+                    onPress={() => setLocal((f) => ({ ...f, min_likes: value }))}
+                  >
+                    <Text style={[styles.stepText, (local.min_likes ?? 0) === value && styles.stepTextActive]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </Section>
+          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>

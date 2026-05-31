@@ -8,6 +8,8 @@ import { Listing, Group } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { useFilterStore } from '@/stores/filterStore';
 import { notifyColocsOfSwipe } from '@/lib/notifications';
+import { alog } from '@/lib/adminLogger';
+import { sendSystemMessage, shareListingToChat } from '@/services/groupChatService';
 
 export type MatchState = { title: string; id: number };
 
@@ -36,6 +38,7 @@ export function useSwipeActions(
   const createMatch = useCallback(async (listing: Listing, listId: string) => {
     const { groupId } = useAuthStore.getState();
     if (!groupId) return;
+    alog('Firestore:setDoc matches (createMatch)', { listingId: listing.id, listId });
     await setDoc(doc(db, 'matches', matchId(groupId, listId, listing.id)), {
       couple_id: groupId,
       search_list_id: listId,
@@ -46,6 +49,10 @@ export function useSwipeActions(
     });
     setMatchState((prev) => ({ title: listing.title, id: (prev?.id ?? 0) + 1 }));
     setTimeout(() => setMatchState(null), 3500);
+    sendSystemMessage(
+      groupId,
+      `🎉 Match ! Tout le groupe a liké "${listing.title}"`,
+    ).catch(() => {});
   }, []);
 
   const checkForMatch = useCallback(async (listing: Listing, listId: string) => {
@@ -70,7 +77,19 @@ export function useSwipeActions(
       return;
     }
 
-    // Tous les autres participants doivent avoir liké CE bien DANS CE critère.
+    // min_likes = 0 → unanimité ; sinon N votes au total (current user compris).
+    const minLikes = activeList?.filters?.min_likes ?? 0;
+    const totalParticipants = otherIds.length + 1;
+    const requiredTotal = minLikes > 0 && minLikes <= totalParticipants ? minLikes : totalParticipants;
+    // L'utilisateur courant vient de swiper right → il faut (requiredTotal - 1) autres.
+    const requiredFromOthers = requiredTotal - 1;
+
+    if (requiredFromOthers <= 0) {
+      await createMatch(listing, listId);
+      return;
+    }
+
+    alog('Firestore:getDocs swipes (checkForMatch)', { listingId: listing.id, listId, otherIds, requiredFromOthers });
     const swipeChecks = await Promise.all(
       otherIds.map((memberId) =>
         getDocs(query(
@@ -83,7 +102,8 @@ export function useSwipeActions(
       ),
     );
 
-    if (swipeChecks.every((snap) => !snap.empty)) {
+    const approvedByOthers = swipeChecks.filter((snap) => !snap.empty).length;
+    if (approvedByOthers >= requiredFromOthers) {
       await createMatch(listing, listId);
     }
   }, [groupRef, createMatch]);
@@ -93,6 +113,7 @@ export function useSwipeActions(
     const { activeListId } = useFilterStore.getState();
     if (!firebaseUser || !groupId) return;
 
+    alog('Firestore:setDoc swipes (recordSwipe)', { direction, listingId: listing.id, listId: activeListId });
     await setDoc(doc(db, 'swipes', swipeId(firebaseUser.uid, activeListId, listing.id)), {
       user_id: firebaseUser.uid,
       listing_id: listing.id,
@@ -132,5 +153,11 @@ export function useSwipeActions(
     }
   }, [pushBack]);
 
-  return { handleSwipe, handleUndo, matchState, lastSwipeRef };
+  const handleShareToChat = useCallback(() => {
+    const top = stackRef.current[0];
+    if (!top) return;
+    shareListingToChat(top).catch(() => {});
+  }, [stackRef]);
+
+  return { handleSwipe, handleUndo, matchState, lastSwipeRef, handleShareToChat };
 }

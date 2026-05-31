@@ -2,10 +2,17 @@ import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Like } from '@/hooks/useLikes';
+import NotesSection from '@/components/NotesSection';
 
-type Props = { like: Like };
+type Member = { id: string; display_name: string };
 
-export default function LikeCard({ like }: Props) {
+type Props = {
+  like: Like;
+  members: Member[];
+  myUid: string | undefined;
+};
+
+export default function LikeCard({ like, members, myUid }: Props) {
   const { listing, liked_at } = like;
   if (!listing) return null;
 
@@ -40,6 +47,7 @@ export default function LikeCard({ like }: Props) {
         <TouchableOpacity style={styles.btn} onPress={() => Linking.openURL(listing.url)}>
           <Text style={styles.btnText}>Voir l'annonce</Text>
         </TouchableOpacity>
+        <NotesSection listingId={like.listing_id} members={members} myUid={myUid} />
       </View>
     </View>
   );

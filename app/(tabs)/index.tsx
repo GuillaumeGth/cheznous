@@ -26,6 +26,7 @@ const GRADIENT_END = { x: 1, y: 1 } as const;
 const FILTER_GRADIENT = ['#F0F4FF', '#E8EDFF'] as const;
 const ACTION_GRADIENT = ['#4A6CF7', '#A855F7'] as const;
 const NOTE_GRADIENT = ['#5B4FE9', '#A855F7'] as const;
+const SHARE_GRADIENT = ['#4A6CF7', '#6A8BFF'] as const;
 const SAFE_EDGES = ['top'] as const;
 
 type ActiveModal =
@@ -49,7 +50,7 @@ export default function SwipeScreen() {
   const stackRef = useRef(stack);
   stackRef.current = stack;
 
-  const { handleSwipe, handleUndo, matchState, lastSwipeRef } = useSwipeActions(
+  const { handleSwipe, handleUndo, matchState, lastSwipeRef, handleShareToChat } = useSwipeActions(
     groupRef, stackRef, pop, pushBack,
   );
 
@@ -212,6 +213,15 @@ export default function SwipeScreen() {
           </View>
           <Text style={styles.matchSub} numberOfLines={1}>{matchState.title}</Text>
         </View>
+      )}
+
+      {/* Share button — left edge, vertically centred in cards area */}
+      {stack.length > 0 && (
+        <TouchableOpacity style={styles.floatingShareBtn} onPress={handleShareToChat}>
+          <LinearGradient colors={SHARE_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.floatingShareInner}>
+            <Ionicons name="chatbubble-ellipses-outline" size={22} color="#fff" />
+          </LinearGradient>
+        </TouchableOpacity>
       )}
 
       {/* Note button — right edge, vertically centred in cards area */}

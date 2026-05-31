@@ -30,6 +30,9 @@ export type TransactionType = 'rent' | 'buy';
  * Numeric range fields (`price_min`, `price_max`, `surface_min`, `surface_max`)
  * use `0` as "no restriction" — i.e. `price_min: 0` means no lower bound,
  * `price_max: 0` means no upper bound. Only positive values are applied as filters.
+ *
+ * `min_likes`: nombre minimum de membres devant avoir liké un bien pour créer un
+ * match. `0` = unanimité (tous les participants de la liste doivent approuver).
  */
 export type SearchFilters = {
   transaction_type: TransactionType;
@@ -39,6 +42,7 @@ export type SearchFilters = {
   surface_min: number;
   surface_max: number;
   rooms_min: number;
+  min_likes: number;
 };
 
 export const DEFAULT_FILTERS: SearchFilters = {
@@ -49,6 +53,7 @@ export const DEFAULT_FILTERS: SearchFilters = {
   surface_min: 0,
   surface_max: 0,
   rooms_min: 0,
+  min_likes: 0,
 };
 
 export type SearchList = {
@@ -131,6 +136,22 @@ export type ChatMessage = {
   display_name: string;
   text: string;
   created_at: string;
+  attachment_url?: string;
+  attachment_type?: 'image' | 'file';
+  attachment_name?: string;
+};
+
+export type GroupMessageType = 'text' | 'system' | 'listing_share';
+
+export type GroupMessage = {
+  id: string;
+  type: GroupMessageType;
+  user_id: string | null;
+  display_name: string | null;
+  text: string;
+  created_at: string;
+  listing?: Listing;
+  reactions?: Record<string, 'like' | 'dislike'>;
   attachment_url?: string;
   attachment_type?: 'image' | 'file';
   attachment_name?: string;
