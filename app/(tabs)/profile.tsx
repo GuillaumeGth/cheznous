@@ -12,7 +12,6 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
 import { auth, db, storage } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
-import { useGroup } from '@/hooks/useGroup';
 import { registerPushToken } from '@/lib/notifications';
 import Toast, { ToastType } from '@/components/Toast';
 import ConfirmSheet from '@/components/ConfirmSheet';
@@ -23,7 +22,6 @@ import { NotificationPrefs, DEFAULT_NOTIFICATION_PREFS } from '@/types';
 export default function ProfileScreen() {
   const firebaseUser = useAuthStore((s) => s.firebaseUser);
   const profile = useAuthStore((s) => s.profile);
-  const { group } = useGroup();
 
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -31,8 +29,6 @@ export default function ProfileScreen() {
 
   const notifPrefs: NotificationPrefs = profile?.notification_prefs ?? DEFAULT_NOTIFICATION_PREFS;
 
-  // Nombre de colocs = membres du groupe actif hors soi-même.
-  const colocCount = Math.max(0, (group?.member_ids?.length ?? 1) - 1);
 
   const showToast = (message: string, type: ToastType = 'info') => setToast({ message, type });
   const providerAccount = useProviderAccount();
@@ -117,7 +113,6 @@ export default function ProfileScreen() {
     router.replace('/(auth)');
   };
 
-  const openGroups = () => router.push('/groups');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -149,27 +144,6 @@ export default function ProfileScreen() {
             <Text style={styles.displayName}>{profile?.display_name ?? 'Mon profil'}</Text>
             <Text style={styles.email}>{firebaseUser?.email}</Text>
           </View>
-        </View>
-
-        {/* Groupes — entrée vers l'écran dédié */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Groupes</Text>
-          <TouchableOpacity style={styles.groupEntry} onPress={openGroups}>
-            <View style={styles.groupEntryIcon}>
-              <Ionicons name="people" size={22} color="#4A6CF7" />
-            </View>
-            <View style={styles.groupEntryTexts}>
-              <Text style={styles.groupEntryName} numberOfLines={1}>
-                {group ? (group.name ?? 'Notre coloc') : 'Mes groupes'}
-              </Text>
-              <Text style={styles.groupEntrySub}>
-                {group
-                  ? (colocCount === 0 ? 'Juste toi' : `${colocCount} coloc${colocCount > 1 ? 's' : ''}`)
-                  : 'Créer un groupe'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#ccc" />
-          </TouchableOpacity>
         </View>
 
         {/* Compte Jinka de l'app — rendu uniquement pour l'administrateur */}
@@ -300,23 +274,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.5,
     marginHorizontal: 20, marginBottom: 10,
   },
-  groupEntry: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  groupEntryIcon: {
-    width: 46, height: 46, borderRadius: 23,
-    backgroundColor: '#EEF1FF',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  groupEntryTexts: { flex: 1 },
-  groupEntryName: { fontSize: 16, fontWeight: '700', color: '#1A1A2E' },
-  groupEntrySub: { fontSize: 13, color: '#888', marginTop: 2 },
   divider: { height: 1, backgroundColor: '#f0f0f0', marginVertical: 8 },
   notifCard: {
     backgroundColor: '#fff',

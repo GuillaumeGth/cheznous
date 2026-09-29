@@ -8,13 +8,9 @@ import { useAuthStore } from '@/stores/authStore';
 
 export const DEFAULT_GROUP_NAME = 'Notre coloc';
 
-export async function renameGroup(groupId: string, name: string): Promise<void> {
-  await updateDoc(doc(db, 'groups', groupId), { name: name.trim() });
-}
-
 /**
- * Crée un nouveau groupe et le rend actif. Les autres utilisateurs le
- * rejoignent automatiquement (SharedGroupsSync) : pas de code d'invitation.
+ * Crée le groupe unique de l'app (SharedGroupsSync, quand il n'en existe
+ * aucun) et le rend actif. Les autres utilisateurs le rejoignent tout seuls.
  */
 export async function createGroup(uid: string, name?: string): Promise<{ id: string }> {
   const groupRef = doc(collection(db, 'groups'));
@@ -34,7 +30,15 @@ export async function createGroup(uid: string, name?: string): Promise<{ id: str
   return { id: groupRef.id };
 }
 
-/** Ajoute `uid` aux membres du groupe (tous les utilisateurs partagent tous les groupes). */
+/** Donne au groupe sa recherche unique quand il n'en a pas. */
+export async function seedDefaultSearch(groupId: string): Promise<void> {
+  await updateDoc(doc(db, 'groups', groupId), {
+    search_lists: [DEFAULT_LIST],
+    active_search_list_id: DEFAULT_LIST.id,
+  });
+}
+
+/** Ajoute `uid` aux membres du groupe unique de l'app. */
 export async function joinGroup(groupId: string, uid: string): Promise<void> {
   await updateDoc(doc(db, 'groups', groupId), { member_ids: arrayUnion(uid) });
 }

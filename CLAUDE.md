@@ -31,7 +31,7 @@ There is no lint script configured.
 
 ## Architecture
 
-**Chez Nous** is an apartment-hunting app for colocs (roommates) in Paris. A group of N people link accounts, swipe on listings independently, and get a match when all targeted members of a search list right-swipe the same listing.
+**Chez Nous** is an apartment-hunting app for colocs (roommates) in Paris. Everyone using the app forms **one implicit group** sharing **one search**: each person swipes independently and a match happens when all members (or `min_likes`) right-swipe the same listing.
 
 ### Path alias
 
@@ -54,9 +54,6 @@ app/
     [matchId].tsx      ← per-match chat (pushes over the tab bar)
   group-chat/
     [groupId].tsx      ← per-group chat
-  groups/
-    index.tsx          ← groups list
-    [id].tsx           ← group detail (name, members, active group)
 ```
 
 **Navigation flow:** `app/index.tsx` reads `authStore` (atomic selectors) and redirects via `<Redirect>`:
@@ -65,13 +62,13 @@ app/
 - User but no `groupId` → spinner while `SharedGroupsSync` sets one
 - User + `groupId` → `/(tabs)`
 
-**Shared groups:** every user of the app is a member of every group — no invite code, no invitations, no leaving. `src/components/SharedGroupsSync.tsx` (mounted once in the root layout) watches the `groups` collection, joins the user to any group they're missing (`joinGroup`, allowed by the rules' "add only yourself" update), creates a first group if none exists, and picks an active group when the user has none (`planSharedGroups` in `src/services/sharedGroups.ts`).
+**One implicit group, one search:** there are no group screens, no invite code, no multiple searches in the UI. Under the hood the app still uses one `groups` doc (the *home* group) holding the single search list, so the data model (swipes/matches/notes `couple_id`, `search_list_id`, chat, Jinka feeds under `groups/{id}`) is unchanged. `src/components/SharedGroupsSync.tsx` (mounted once in the root layout) watches `groups`: creates the home group if none exists, joins the user to it (`joinGroup`, allowed by the rules' "add only yourself" update), seeds its default search if it has none, and makes it the user's active group. `planHomeGroup` (`src/services/sharedGroups.ts`) picks the same home group for every client.
 
 ### State management (Zustand)
 
 Stores live in `src/stores/`.
 
-- `authStore` — `firebaseUser`, `profile` (UserProfile), `groupId`, `isLoading` (+ setters and `reset`). Populated by the `onAuthStateChanged` listener in `app/_layout.tsx`. `groupId` is the active group (multi-group).
+- `authStore` — `firebaseUser`, `profile` (UserProfile), `groupId`, `isLoading` (+ setters and `reset`). Populated by the `onAuthStateChanged` listener in `app/_layout.tsx`. `groupId` is the home group (see One implicit group).
 - `filterStore` — `filters` (SearchFilters), `syncFilters(...)` which writes to Firestore. Filters are loaded from the group doc via `useCouple` on mount.
 - `listingsStore` — swipe-stack state.
 
@@ -84,7 +81,7 @@ Singleton init in `src/lib/firebase.ts` with `experimentalForceLongPolling: true
 | Collection | Doc ID | Notes |
 |---|---|---|
 | `users` | `{uid}` | UserProfile; `push_token` stored here. Group membership in `couple_id` field (= active groupId) |
-| `groups` | auto | `name`, `member_ids[]` (= every user, see Shared groups), `search_lists[]` (each list has its own `filters`, optional `member_ids` sub-group, `cover_photo_url`), `active_search_list_id`. `user1_id`/`user2_id`/`filters`/`invite_code` are legacy |
+| `groups` | auto | One home group in practice: `name`, `member_ids[]` (= every user), `search_lists[]` (the single search: `filters`; legacy `member_ids` sub-group / `cover_photo_url`), `active_search_list_id`. `user1_id`/`user2_id`/`filters`/`invite_code` are legacy |
 | `groups/{id}/messages` | auto | `GroupMessage`; group chat subcollection (text / system / listing_share) |
 | `notes` | `{uid}_{listingId}` | Per-user note on a listing; all members' notes are read together (`useListingNotes`) |
 | `follows` | `{follower_id}_{following_id}` | Follow relationships between users |
@@ -122,7 +119,7 @@ Listings come from **Jinka** (no public API — its internal web API, ported fro
 | `rooms_min` | `number` | `0` | ignored when 0 |
 | `min_likes` | `number` | `0` | Min members who must like a listing to match; `0` = unanimity |
 
-`SearchFilters` live per **search list** (`SearchList.filters`), not per group. Each group has multiple search lists with their own filters and optional member sub-group; the top-level `Group.filters` field is legacy.
+`SearchFilters` live on the single **search list** (`SearchList.filters`) of the home group; the top-level `Group.filters` field is legacy. The data model still supports several lists, but the app shows and edits only the active one.
 
 ### Chat
 

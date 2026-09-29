@@ -36,7 +36,7 @@ const SAFE_EDGES = ['top'] as const;
 const NEEDS_FEED_LINK = getListingsDataSource().kind === 'feed';
 
 type ActiveModal =
-  | { type: 'filter'; adding?: boolean }
+  | { type: 'filter' }
   | { type: 'note' }
   | { type: 'detail'; listing: Listing };
 
@@ -133,7 +133,6 @@ export default function SwipeScreen() {
   const handleToastHide = useCallback(() => setToast(null), []);
   const handleNotePress = useCallback(() => setModal({ type: 'note' }), []);
   const handleFilterPress = useCallback(() => setModal({ type: 'filter' }), []);
-  const handleCreateSearch = useCallback(() => setModal({ type: 'filter', adding: true }), []);
   const handleReload = useCallback(() => refresh(true), [refresh]);
   const handleModalClose = useCallback(() => setModal(null), []);
 
@@ -172,13 +171,9 @@ export default function SwipeScreen() {
       {/* Cards area */}
       <View style={styles.cardsArea}>
         {!hasSearch ? (
-          <EmptyState
-            icon="search-outline"
-            title="Aucune recherche"
-            desc="Crée une recherche pour commencer à swiper"
-            actionLabel="Créer une recherche"
-            onAction={handleCreateSearch}
-          />
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color="#4A6CF7" />
+          </View>
         ) : isUnlinked ? (
           <EmptyState
             icon="link-outline"
@@ -264,7 +259,6 @@ export default function SwipeScreen() {
         visible={modal?.type === 'filter'}
         onClose={handleModalClose}
         members={members}
-        initialAdding={modal?.type === 'filter' ? modal.adding : false}
       />
       <ListingDetailSheet
         listing={modal?.type === 'detail' ? modal.listing : null}

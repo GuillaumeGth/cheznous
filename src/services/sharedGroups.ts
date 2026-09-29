@@ -1,7 +1,7 @@
-// Every user of the app shares every group: no invite code, no joining. A
-// single listener (SharedGroupsSync) keeps the current user a member of all
-// groups and makes sure they have an active one. This module holds the pure
-// decision logic so it can be unit-tested.
+// Everyone using the app forms one single, implicit group: no invite code, no
+// group screens, one search. Under the hood that's one `groups` doc (the
+// "home" group) that every user joins automatically (SharedGroupsSync). This
+// module holds the pure decision logic so it can be unit-tested.
 
 export type GroupSummary = {
   id: string;
@@ -9,34 +9,34 @@ export type GroupSummary = {
   searchListCount: number;
 };
 
-export type SharedGroupsPlan = {
-  /** Groups the user isn't a member of yet. */
-  toJoin: string[];
-  /** No group at all: create one. */
+export type HomeGroupPlan = {
+  /** No group at all: create the home group. */
   create: boolean;
-  /** New active group to set, or null to keep the current one. */
-  activeGroupId: string | null;
+  /** The group everyone uses (null only when `create`). */
+  homeGroupId: string | null;
+  /** The user isn't a member of the home group yet. */
+  join: boolean;
+  /** The home group has no search yet: give it the default one. */
+  seedSearch: boolean;
 };
 
-// The group with the most search lists, then the most members: the one the
-// household actually uses, rather than an empty leftover.
-function pickDefault(groups: GroupSummary[]): GroupSummary {
+// Should there ever be several groups, every client must pick the same one:
+// the one with the most searches, then the most members, then the smallest id.
+function pickHome(groups: GroupSummary[]): GroupSummary {
   return [...groups].sort(
-    (a, b) => b.searchListCount - a.searchListCount || b.memberIds.length - a.memberIds.length,
+    (a, b) => b.searchListCount - a.searchListCount
+      || b.memberIds.length - a.memberIds.length
+      || a.id.localeCompare(b.id),
   )[0];
 }
 
-export function planSharedGroups(
-  groups: GroupSummary[],
-  uid: string,
-  currentGroupId: string | null,
-): SharedGroupsPlan {
-  if (groups.length === 0) return { toJoin: [], create: true, activeGroupId: null };
-  const toJoin = groups.filter((g) => !g.memberIds.includes(uid)).map((g) => g.id);
-  const currentIsValid = !!currentGroupId && groups.some((g) => g.id === currentGroupId);
+export function planHomeGroup(groups: GroupSummary[], uid: string): HomeGroupPlan {
+  if (groups.length === 0) return { create: true, homeGroupId: null, join: false, seedSearch: false };
+  const home = pickHome(groups);
   return {
-    toJoin,
     create: false,
-    activeGroupId: currentIsValid ? null : pickDefault(groups).id,
+    homeGroupId: home.id,
+    join: !home.memberIds.includes(uid),
+    seedSearch: home.searchListCount === 0,
   };
 }

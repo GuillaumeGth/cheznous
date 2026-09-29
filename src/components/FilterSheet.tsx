@@ -1,22 +1,19 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity, Pressable,
-  ScrollView, Platform, TextInput, Alert, Image, ActivityIndicator,
+  View, Text, StyleSheet, Modal, TouchableOpacity,
+  ScrollView, Platform, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { GroupMember, SearchFilters, TransactionType, DEFAULT_FILTERS } from '@/types';
 import { useFilterStore } from '@/stores/filterStore';
 import { useAuthStore } from '@/stores/authStore';
-import { pickAndUploadImage } from '@/lib/uploadImage';
 import FeedSourcePicker from '@/components/FeedSourcePicker';
 
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /** Other users of the app (the single search involves everyone). */
   members: GroupMember[];
-  /** Ouvre directement le formulaire de création de recherche. */
-  initialAdding?: boolean;
 };
 
 const ARRONDISSEMENTS = Array.from({ length: 20 }, (_, i) => i + 1);
@@ -34,23 +31,16 @@ const ROOMS_OPTIONS = [
   { label: '4+ p.', value: 4 },
 ];
 
-export default function FilterSheet({ visible, onClose, members, initialAdding }: Props) {
+export default function FilterSheet({ visible, onClose, members }: Props) {
   const searchLists = useFilterStore((s) => s.searchLists);
   const activeListId = useFilterStore((s) => s.activeListId);
   const groupId = useAuthStore((s) => s.groupId);
   const insets = useSafeAreaInsets();
 
-  const [activeTab, setActiveTab] = useState(activeListId);
   const [local, setLocal] = useState<SearchFilters>(DEFAULT_FILTERS);
 
-  const activeListObj = useMemo(
-    () => searchLists.find((l) => l.id === activeTab),
-    [searchLists, activeTab],
-  );
-  const totalMembers = useMemo(
-    () => (activeListObj?.member_ids?.length ?? members.length) + 1,
-    [activeListObj, members.length],
-  );
+  // Everyone using the app takes part in the single search (+1 = me).
+  const totalMembers = members.length + 1;
   const likesOptions = useMemo(() => [
     { label: 'Tous', value: 0 },
     ...Array.from({ length: totalMembers - 1 }, (_, i) => ({
@@ -58,36 +48,10 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
       value: i + 1,
     })),
   ], [totalMembers]);
-  const [adding, setAdding] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newMemberIds, setNewMemberIds] = useState<string[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [coverBusy, setCoverBusy] = useState(false);
-
-  const activeCover = useMemo(
-    () => searchLists.find((l) => l.id === activeTab)?.cover_photo_url ?? null,
-    [searchLists, activeTab],
-  );
 
   useEffect(() => {
-    if (visible) {
-      setActiveTab(activeListId);
-      const list = searchLists.find((l) => l.id === activeListId);
-      setLocal(normalizeFilters(list?.filters));
-      setAdding(initialAdding ?? searchLists.length === 0);
-      setNewName('');
-      setNewMemberIds(members.map((m) => m.uid));
-      setEditingId(null);
-      setEditName('');
-    }
+    if (visible) setLocal(normalizeFilters(searchLists.find((l) => l.id === activeListId)?.filters));
   }, [visible]);
-
-  const switchTab = (id: string) => {
-    setActiveTab(id);
-    const list = searchLists.find((l) => l.id === id);
-    if (list) setLocal(normalizeFilters(list.filters));
-  };
 
   const setTransaction = (value: TransactionType) => {
     setLocal((f) =>
@@ -107,90 +71,11 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
   };
 
   const apply = async () => {
-    if (groupId) await useFilterStore.getState().syncFilters(groupId, local, activeTab);
+    if (groupId && activeListId) await useFilterStore.getState().syncFilters(groupId, local, activeListId);
     onClose();
   };
 
   const reset = () => setLocal(DEFAULT_FILTERS);
-
-  const changeCover = useCallback(async () => {
-    if (!groupId || coverBusy) return;
-    setCoverBusy(true);
-    try {
-      const res = await pickAndUploadImage(`search_covers/${groupId}_${activeTab}.jpg`, [16, 9]);
-      if (res.status === 'success') {
-        await useFilterStore.getState().setListCover(groupId, activeTab, res.url);
-      } else if (res.status === 'no-permission') {
-        Alert.alert('Accès refusé', "Autorise l'accès à ta galerie dans les réglages.");
-      } else if (res.status === 'error') {
-        Alert.alert('Erreur', "Impossible de changer la photo. Réessaie.");
-      }
-    } finally {
-      setCoverBusy(false);
-    }
-  }, [groupId, activeTab, coverBusy]);
-
-  const removeCover = useCallback(async () => {
-    if (!groupId) return;
-    await useFilterStore.getState().setListCover(groupId, activeTab, null);
-  }, [groupId, activeTab]);
-
-  const toggleMember = useCallback((uid: string) => {
-    setNewMemberIds((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid],
-    );
-  }, []);
-
-  const confirmAdd = async () => {
-    const name = newName.trim();
-    if (!name || !groupId || newMemberIds.length === 0) return;
-    const id = await useFilterStore.getState().addList(groupId, name, newMemberIds);
-    setActiveTab(id);
-    setLocal(DEFAULT_FILTERS);
-    setAdding(false);
-    setNewName('');
-    setNewMemberIds(members.map((m) => m.uid));
-  };
-
-  const startEdit = (id: string, currentName: string) => {
-    setEditingId(id);
-    setEditName(currentName);
-    setAdding(false);
-  };
-
-  const confirmEdit = async () => {
-    const name = editName.trim();
-    if (!name || !groupId || !editingId) { setEditingId(null); return; }
-    await useFilterStore.getState().renameList(groupId, editingId, name);
-    setEditingId(null);
-    setEditName('');
-  };
-
-  const cancelEdit = () => { setEditingId(null); setEditName(''); };
-
-  const handleRemove = (id: string) => {
-    if (!groupId || searchLists.length <= 1) return;
-    const listName = searchLists.find((l) => l.id === id)?.name ?? 'cette liste';
-    Alert.alert(
-      'Supprimer la liste',
-      `Supprimer « ${listName} » ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            const newActiveId = await useFilterStore.getState().removeList(groupId, id);
-            if (activeTab === id) {
-              setActiveTab(newActiveId);
-              const list = searchLists.find((l) => l.id === newActiveId);
-              if (list) setLocal(normalizeFilters(list.filters));
-            }
-          },
-        },
-      ],
-    );
-  };
 
   const isBuy = local.transaction_type === 'buy';
 
@@ -208,153 +93,10 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
           </TouchableOpacity>
         </View>
 
-        {/* Search list tabs */}
-        <View style={styles.tabsWrapper}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabsContent}
-          >
-            {searchLists.map((list) => {
-              const isActive = list.id === activeTab;
-              const isEditing = editingId === list.id;
-              if (isEditing) {
-                return (
-                  <View key={list.id} style={[styles.tab, styles.tabActive, styles.tabEditing]}>
-                    <TextInput
-                      value={editName}
-                      onChangeText={setEditName}
-                      autoFocus
-                      returnKeyType="done"
-                      onSubmitEditing={confirmEdit}
-                      style={styles.tabEditInput}
-                    />
-                    <TouchableOpacity onPress={confirmEdit} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                      <Ionicons name="checkmark-circle" size={18} color={editName.trim() ? '#4A6CF7' : '#ccc'} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={cancelEdit} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                      <Ionicons name="close-circle" size={18} color="#ccc" />
-                    </TouchableOpacity>
-                  </View>
-                );
-              }
-              return (
-                <TouchableOpacity
-                  key={list.id}
-                  style={[styles.tab, isActive && styles.tabActive]}
-                  onPress={() => switchTab(list.id)}
-                  onLongPress={() => startEdit(list.id, list.name)}
-                >
-                  <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                    {list.name}
-                  </Text>
-                  {isActive && (
-                    <TouchableOpacity
-                      style={styles.tabDelete}
-                      onPress={() => startEdit(list.id, list.name)}
-                      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                    >
-                      <Ionicons name="pencil" size={12} color="#4A6CF7" />
-                    </TouchableOpacity>
-                  )}
-                  {isActive && searchLists.length > 1 && (
-                    <TouchableOpacity
-                      style={styles.tabDelete}
-                      onPress={() => handleRemove(list.id)}
-                      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
-                    >
-                      <Ionicons name="close-circle" size={14} color="#4A6CF7" />
-                    </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-
-            {!adding && (
-              <TouchableOpacity
-                style={styles.addTab}
-                onPress={() => {
-                  setAdding(true);
-                  setNewMemberIds(members.map((m) => m.uid));
-                }}
-              >
-                <Ionicons name="add" size={18} color="#4A6CF7" />
-              </TouchableOpacity>
-            )}
-          </ScrollView>
-
-          {adding && (
-            <View style={styles.addBlock}>
-              <View style={styles.addRow}>
-                <TextInput
-                  value={newName}
-                  onChangeText={setNewName}
-                  placeholder="Nom de la liste"
-                  placeholderTextColor="#aaa"
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={confirmAdd}
-                  style={styles.addInput}
-                />
-                <TouchableOpacity onPress={confirmAdd} disabled={!newName.trim() || newMemberIds.length === 0}>
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={26}
-                    color={newName.trim() && newMemberIds.length > 0 ? '#4A6CF7' : '#ccc'}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => { setAdding(false); setNewName(''); }}>
-                  <Ionicons name="close-circle" size={26} color="#ccc" />
-                </TouchableOpacity>
-              </View>
-
-              {members.length > 0 && (
-                <View style={styles.memberSelector}>
-                  <Text style={styles.memberSelectorLabel}>Participants</Text>
-                  <View style={styles.memberChips}>
-                    {members.map((member) => (
-                      <MemberChip
-                        key={member.uid}
-                        member={member}
-                        selected={newMemberIds.includes(member.uid)}
-                        onToggle={toggleMember}
-                      />
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* Photo de couverture */}
-          <View style={styles.coverSection}>
-            <Pressable style={styles.coverBox} onPress={changeCover} disabled={coverBusy}>
-              {activeCover ? (
-                <Image source={{ uri: activeCover }} style={styles.coverImage} />
-              ) : (
-                <View style={styles.coverPlaceholder}>
-                  <Ionicons name="image-outline" size={28} color="#4A6CF7" />
-                  <Text style={styles.coverPlaceholderText}>Ajouter une photo de couverture</Text>
-                </View>
-              )}
-              <View style={styles.coverEditBadge}>
-                {coverBusy
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Ionicons name="camera" size={14} color="#fff" />}
-              </View>
-            </Pressable>
-            {activeCover && !coverBusy && (
-              <TouchableOpacity onPress={removeCover} style={styles.coverRemoveBtn}>
-                <Text style={styles.coverRemoveText}>Retirer la photo</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
           {/* Source des annonces (alerte Jinka liée à cette recherche) */}
           <Section title="Source des annonces">
-            <FeedSourcePicker groupId={groupId} listId={activeTab} />
+            <FeedSourcePicker groupId={groupId} listId={activeListId} />
           </Section>
 
           {/* Type de transaction */}
@@ -517,40 +259,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-type MemberChipProps = {
-  member: GroupMember;
-  selected: boolean;
-  onToggle: (uid: string) => void;
-};
-
-function MemberChip({ member, selected, onToggle }: MemberChipProps) {
-  const handlePress = useCallback(() => onToggle(member.uid), [onToggle, member.uid]);
-  return (
-    <Pressable
-      style={selected ? styles.memberChipSelected : styles.memberChip}
-      onPress={handlePress}
-    >
-      {member.photoUrl ? (
-        <Image source={{ uri: member.photoUrl }} style={styles.memberChipAvatar} />
-      ) : (
-        <View style={styles.memberChipAvatarPlaceholder}>
-          <Text style={styles.memberChipAvatarLetter}>
-            {member.displayName?.[0]?.toUpperCase() ?? '?'}
-          </Text>
-        </View>
-      )}
-      <Text style={selected ? styles.memberChipTextSelected : styles.memberChipText}>
-        {member.displayName}
-      </Text>
-      <Ionicons
-        name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-        size={14}
-        color={selected ? '#4A6CF7' : '#aaa'}
-      />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -574,102 +282,12 @@ const styles = StyleSheet.create({
   },
   cancel: { fontSize: 16, color: '#888' },
   reset: { fontSize: 16, color: '#4A6CF7' },
-  tabsWrapper: {
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  tabsContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#ddd',
-    backgroundColor: '#F8F9FA',
-    gap: 4,
-  },
-  tabActive: {
-    borderColor: '#4A6CF7',
-    backgroundColor: '#EEF1FF',
-  },
-  tabText: { fontSize: 13, color: '#555', fontWeight: '500' },
-  tabTextActive: { color: '#4A6CF7', fontWeight: '600' },
-  tabDelete: { marginLeft: 2 },
-  tabEditing: {
-    paddingHorizontal: 8,
-    minWidth: 120,
-  },
-  tabEditInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#4A6CF7',
-    fontWeight: '600',
-    paddingVertical: 0,
-    minWidth: 60,
-  },
-  addTab: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1.5,
-    borderColor: '#4A6CF7',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    gap: 8,
-  },
-  addInput: {
-    flex: 1,
-    height: 38,
-    borderWidth: 1.5,
-    borderColor: '#4A6CF7',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    color: '#1A1A2E',
-    backgroundColor: '#fff',
-  },
   hint: {
     fontSize: 13,
     color: '#888',
     marginBottom: 10,
   },
   scroll: { flex: 1, padding: 16 },
-  coverSection: { marginBottom: 12 },
-  coverBox: {
-    height: 150,
-    borderRadius: 16,
-    backgroundColor: '#EEF1FF',
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coverImage: { width: '100%', height: '100%' },
-  coverPlaceholder: { alignItems: 'center', gap: 8 },
-  coverPlaceholderText: { fontSize: 13, color: '#4A6CF7', fontWeight: '600' },
-  coverEditBadge: {
-    position: 'absolute', bottom: 10, right: 10,
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(26,26,46,0.85)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  coverRemoveBtn: { alignSelf: 'center', marginTop: 8 },
-  coverRemoveText: { fontSize: 13, color: '#FF4444', fontWeight: '600' },
   section: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -736,68 +354,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
-  },
-  addBlock: {
-    paddingBottom: 10,
-  },
-  memberSelector: {
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-  },
-  memberSelectorLabel: {
-    fontSize: 12,
-    color: '#888',
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  memberChips: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  memberChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#ddd',
-    backgroundColor: '#F8F9FA',
-  },
-  memberChipSelected: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#4A6CF7',
-    backgroundColor: '#EEF1FF',
-  },
-  memberChipAvatar: { width: 22, height: 22, borderRadius: 11 },
-  memberChipAvatarPlaceholder: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#4A6CF7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  memberChipAvatarLetter: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  memberChipText: {
-    fontSize: 13,
-    color: '#555',
-    fontWeight: '500',
-  },
-  memberChipTextSelected: {
-    fontSize: 13,
-    color: '#4A6CF7',
-    fontWeight: '600',
   },
   rangeRow: {
     flexDirection: 'row',
