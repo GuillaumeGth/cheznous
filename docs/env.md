@@ -9,6 +9,7 @@
 EXPO_PUBLIC_LISTINGS_SOURCE=          # 'mock' = annonces générées localement ; omis = flux Jinka (Cloud Functions)
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=     # Google OAuth web client ID (console GCP)
 EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID= # Google OAuth Android client ID (optionnel)
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=     # Google OAuth iOS client ID — sans lui, pas de bouton Google sur iOS
 ```
 
 Toutes sont optionnelles.

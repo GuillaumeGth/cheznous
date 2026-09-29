@@ -142,6 +142,7 @@ Listings come from **Jinka** (no public API — its internal web API, ported fro
 EXPO_PUBLIC_LISTINGS_SOURCE=          # 'mock' = locally generated listings; omit = Jinka feed
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=     # Google OAuth web client ID
 EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID= # Google OAuth Android client ID (optional)
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=     # Google OAuth iOS client ID; without it the Google button is hidden on iOS
 ```
 
 No Jinka key client-side: each user connects their account from the Profile; the token stays server-side.

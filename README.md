@@ -97,6 +97,7 @@ npm --prefix functions install
 EXPO_PUBLIC_LISTINGS_SOURCE=          # 'mock' = annonces générées localement ; omettre = flux Jinka
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=     # ID client OAuth web (Google Sign-In)
 EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID= # ID client OAuth Android (optionnel)
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=     # ID client OAuth iOS (sans lui, pas de bouton Google sur iOS)
 ```
 
 Aucune clé Jinka côté app : chaque utilisateur connecte son compte Jinka depuis le Profil, et seul le serveur garde le token.

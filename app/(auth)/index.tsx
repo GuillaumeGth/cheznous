@@ -19,12 +19,14 @@ WebBrowser.maybeCompleteAuthSession();
 
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
 
 // Isolated so the hook is never called without the required client IDs
 function GoogleButton({ onCredential, disabled }: { onCredential: (token: string) => void; disabled: boolean }) {
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
   });
 
   useEffect(() => {
@@ -45,7 +47,9 @@ function GoogleButton({ onCredential, disabled }: { onCredential: (token: string
   );
 }
 
-const showGoogleBtn = !!GOOGLE_WEB_CLIENT_ID;
+// expo-auth-session throws at render on iOS without an iOS client id — hide the
+// button there rather than crash the login screen.
+const showGoogleBtn = !!GOOGLE_WEB_CLIENT_ID && (Platform.OS !== 'ios' || !!GOOGLE_IOS_CLIENT_ID);
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
