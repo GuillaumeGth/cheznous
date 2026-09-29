@@ -5,7 +5,7 @@ import { setGlobalOptions } from 'firebase-functions/v2/options';
 import { CallableRequest, HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
-  AppError, connectProvider, disconnectProvider, linkSearchList, refreshProviderAlerts,
+  AppError, connectProvider, disconnectProvider, linkSearchList, refetchProvider,
 } from './accounts';
 import { createJinkaProvider } from './providers/jinka/jinkaProvider';
 import { firestoreFeedStore } from './store/firestoreFeedStore';
@@ -39,7 +39,7 @@ function callable<R>(fn: (deps: SyncDeps, uid: string, data: unknown) => Promise
 
 export const connectListingProvider = callable(connectProvider);
 export const disconnectListingProvider = callable(disconnectProvider);
-export const refreshListingProviderAlerts = callable(refreshProviderAlerts);
+export const refetchListingProvider = callable(refetchProvider);
 export const linkSearchListToAlert = callable(linkSearchList);
 
 // Daytime: every 30 min, first page(s) of each linked alert only.

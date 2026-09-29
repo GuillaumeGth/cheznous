@@ -3,9 +3,11 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from 'reac
 import { Ionicons } from '@expo/vector-icons';
 import { useProviderAccount } from '@/hooks/useProviderAccount';
 import {
-  callableErrorMessage, connectProvider, connectProviderWithToken, disconnectProvider, refreshProviderAlerts,
+  callableErrorMessage, connectProvider, connectProviderWithToken, disconnectProvider, refetchProvider,
 } from '@/services/providerAccounts';
 import { ProviderAuthMethod } from '@/types';
+import { refreshListingsIfActive } from '@/hooks/useListings';
+import { useFilterStore } from '@/stores/filterStore';
 import { styles } from '@/styles/providerAccount.styles';
 
 type Props = {
@@ -58,11 +60,21 @@ export default function ProviderAccountSection({ onMessage }: Props) {
     }
   }, [mode, email, password, token, onMessage]);
 
-  const refresh = useCallback(async () => {
+  // Refetch from Jinka now, then reload the swipe stack with the fresh feed.
+  const refetch = useCallback(async () => {
     setBusy('refresh');
     try {
-      const alerts = await refreshProviderAlerts();
-      onMessage(`${alerts.length} alerte${alerts.length > 1 ? 's' : ''} Jinka`, 'info');
+      const { feeds, newItems, expiredItems } = await refetchProvider();
+      refreshListingsIfActive(useFilterStore.getState().activeListId);
+      if (feeds === 0) {
+        onMessage('Alertes mises à jour. Lie une alerte à une recherche pour voir ses annonces.', 'info');
+      } else {
+        const parts = [
+          newItems > 0 ? `${newItems} nouvelle${newItems > 1 ? 's' : ''}` : null,
+          expiredItems > 0 ? `${expiredItems} expirée${expiredItems > 1 ? 's' : ''}` : null,
+        ].filter(Boolean);
+        onMessage(`Annonces à jour${parts.length ? ` · ${parts.join(', ')}` : ''}`, 'success');
+      }
     } catch (e) {
       onMessage(callableErrorMessage(e), 'error');
     } finally {
@@ -144,10 +156,10 @@ export default function ProviderAccountSection({ onMessage }: Props) {
             Lie une alerte à une recherche depuis les filtres : tout le groupe swipe ses annonces.
           </Text>
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={refresh} disabled={busy !== null}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={refetch} disabled={busy !== null}>
               {busy === 'refresh'
                 ? <ActivityIndicator size="small" color="#4A6CF7" />
-                : <Text style={styles.secondaryBtnText}>Actualiser</Text>}
+                : <Text style={styles.secondaryBtnText}>Actualiser les annonces</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.dangerBtn} onPress={disconnect} disabled={busy !== null}>
               {busy === 'disconnect'

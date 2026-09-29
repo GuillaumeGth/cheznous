@@ -207,6 +207,7 @@ export type ProviderAccount = {
   connected_at: string;
   last_sync_at: string | null;
   last_error: string | null;
+  last_refetch_at?: string | null; // last manual refetch (server-side cooldown)
 };
 
 // Firestore: `groups/{groupId}/feeds/{listId}` — which provider alert feeds a

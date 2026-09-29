@@ -55,6 +55,8 @@ export type ProviderAccount = {
   connected_at: string;
   last_sync_at: string | null;
   last_error: string | null;
+  /** Last manual refetch (cooldown). */
+  last_refetch_at?: string | null;
 };
 
 /**

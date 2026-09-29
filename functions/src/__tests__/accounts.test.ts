@@ -1,6 +1,6 @@
 import {
   AppError, connectProvider, disconnectProvider, emailFromToken, linkSearchList, normalizeToken,
-  refreshProviderAlerts,
+  REFETCH_COOLDOWN_MS, refetchProvider,
 } from '../accounts';
 import { FakeProvider, FIXED_NOW, MemoryFeedStore, feedLink, makeListing } from './fakes';
 
@@ -138,13 +138,58 @@ describe('linkSearchList', () => {
   });
 });
 
-describe('refreshProviderAlerts', () => {
-  it('marks the account expired when the token is refused', async () => {
+describe('refetchProvider', () => {
+  it('re-reads every page of the linked alerts and reports what changed', async () => {
     const { store, provider, deps } = setup();
     await connect(deps);
-    provider.validTokens.clear();
+    provider.pages.set('a1', [[makeListing('jinka_1')], [makeListing('jinka_2')]]);
+    await linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
+    // jinka_1 vanished from the alert, jinka_3 is new deep in page 2.
+    provider.pages.set('a1', [[makeListing('jinka_2')], [makeListing('jinka_3')]]);
+    deps.now = () => new Date(FIXED_NOW.getTime() + REFETCH_COOLDOWN_MS);
 
-    await expectAppError(refreshProviderAlerts(deps, 'alice', { provider: 'jinka' }), 'failed-precondition');
+    const result = await refetchProvider(deps, 'alice', { provider: 'jinka' });
+
+    expect(result).toMatchObject({ feeds: 1, newItems: 1, expiredItems: 1 });
+    expect(result.alerts).toEqual(provider.alerts);
+    expect(store.items.get('g1/l1')!.get('jinka_1')!.active).toBe(false);
+  });
+
+  it('only refreshes the alert list when no search list is linked', async () => {
+    const { provider, deps } = setup();
+    await connect(deps);
+    provider.calls = [];
+    deps.now = () => new Date(FIXED_NOW.getTime() + REFETCH_COOLDOWN_MS);
+
+    const result = await refetchProvider(deps, 'alice', { provider: 'jinka' });
+
+    expect(result).toMatchObject({ feeds: 0, newItems: 0 });
+    expect(provider.calls).toEqual(['alerts']);
+  });
+
+  it('enforces a cooldown between two refetches', async () => {
+    const { deps } = setup();
+    await connect(deps);
+    let now = FIXED_NOW.getTime() + REFETCH_COOLDOWN_MS;
+    deps.now = () => new Date(now);
+
+    await refetchProvider(deps, 'alice', { provider: 'jinka' });
+    now += REFETCH_COOLDOWN_MS - 1000;
+    await expectAppError(refetchProvider(deps, 'alice', { provider: 'jinka' }), 'failed-precondition');
+    now += 1000;
+    await expect(refetchProvider(deps, 'alice', { provider: 'jinka' })).resolves.toBeDefined();
+  });
+
+  it('requires a connected account and reports an expired session', async () => {
+    const { store, provider, deps } = setup();
+    await expectAppError(refetchProvider(deps, 'alice', { provider: 'jinka' }), 'failed-precondition');
+
+    await connect(deps);
+    await linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
+    provider.validTokens.clear();
+    deps.now = () => new Date(FIXED_NOW.getTime() + REFETCH_COOLDOWN_MS);
+
+    await expectAppError(refetchProvider(deps, 'alice', { provider: 'jinka' }), 'failed-precondition');
     expect(store.accounts.get('alice/jinka')!.status).toBe('expired');
     expect(store.tokens.has('alice/jinka')).toBe(false);
   });

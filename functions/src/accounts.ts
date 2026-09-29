@@ -140,10 +140,52 @@ async function liveAlerts(deps: SyncDeps, uid: string, provider: ProviderId): Pr
   }
 }
 
-/** Re-reads the alert list (after the user created one on jinka.fr). */
-export async function refreshProviderAlerts(deps: SyncDeps, uid: string, input: unknown): Promise<{ alerts: ProviderAlert[] }> {
+/** Minimum gap between two manual refetches of the same account. */
+export const REFETCH_COOLDOWN_MS = 2 * 60 * 1000;
+
+export type RefetchResult = {
+  alerts: ProviderAlert[];
+  feeds: number;
+  newItems: number;
+  expiredItems: number;
+};
+
+/**
+ * Manual refetch ("Actualiser les annonces"): re-reads the alert list and every
+ * page of the caller's linked alerts right away — same full pass as the
+ * nightly sweep (photos/prices updated, expirations detected). Rate-limited.
+ */
+export async function refetchProvider(deps: SyncDeps, uid: string, input: unknown): Promise<RefetchResult> {
   const provider = providerId(record(input).provider);
-  return { alerts: await liveAlerts(deps, uid, provider) };
+  const account = await deps.store.getAccount(uid, provider);
+  if (!account) throw new AppError('failed-precondition', 'Connecte ton compte Jinka dans ton profil');
+
+  const now = deps.now();
+  const wait = (account.last_refetch_at ? Date.parse(account.last_refetch_at) : 0) + REFETCH_COOLDOWN_MS - now.getTime();
+  if (wait > 0) {
+    throw new AppError('failed-precondition', `Patiente encore ${Math.ceil(wait / 1000)} s avant d'actualiser`);
+  }
+  await deps.store.updateAccount(uid, provider, { last_refetch_at: now.toISOString() });
+
+  const feeds = (await deps.store.listFeeds({ ownerId: uid })).filter((f) => f.provider === provider);
+  if (feeds.length === 0) {
+    return { alerts: await liveAlerts(deps, uid, provider), feeds: 0, newItems: 0, expiredItems: 0 };
+  }
+
+  const report = await syncFeeds(deps, feeds, 'sweep'); // also refreshes the alert list
+  const after = await deps.store.getAccount(uid, provider);
+  if (after?.status === 'expired') {
+    throw new AppError('failed-precondition', 'Session Jinka expirée, reconnecte-toi dans ton profil');
+  }
+  if (after?.status === 'error') {
+    throw new AppError('unavailable', 'Jinka est injoignable, réessaie plus tard');
+  }
+  return {
+    alerts: after?.alerts ?? [],
+    feeds: report.feeds,
+    newItems: report.newItems,
+    expiredItems: report.expiredItems,
+  };
 }
 
 /**

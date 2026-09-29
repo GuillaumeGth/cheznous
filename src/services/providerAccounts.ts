@@ -39,11 +39,17 @@ export async function disconnectProvider(): Promise<void> {
   await httpsCallable<{ provider: ProviderId }, void>(functions, 'disconnectListingProvider')({ provider: PROVIDER });
 }
 
-export async function refreshProviderAlerts(): Promise<ProviderAlert[]> {
-  alog('Callable:refreshListingProviderAlerts');
-  const call = httpsCallable<{ provider: ProviderId }, AlertsResult>(functions, 'refreshListingProviderAlerts');
+export type RefetchResult = AlertsResult & { feeds: number; newItems: number; expiredItems: number };
+
+/**
+ * Re-reads the alert list and every page of the caller's linked alerts now
+ * (same full pass as the nightly sweep). Rate-limited server-side (2 min).
+ */
+export async function refetchProvider(): Promise<RefetchResult> {
+  alog('Callable:refetchListingProvider');
+  const call = httpsCallable<{ provider: ProviderId }, RefetchResult>(functions, 'refetchListingProvider');
   const { data } = await call({ provider: PROVIDER });
-  return data.alerts;
+  return data;
 }
 
 /** Links a search list to one of the caller's alerts (`null` unlinks). Returns new items. */

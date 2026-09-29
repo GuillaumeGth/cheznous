@@ -63,7 +63,7 @@ Un compte Jinka créé avec Google, Apple ou un code par email **n'a pas de mot 
 |---|---|---|
 | `connectListingProvider` | `{ provider, email, password }` **ou** `{ provider, token }` | Authentifie (ou valide le token en lisant les alertes), stocke le token, écrit `users/{uid}/provider_accounts/jinka` (`auth_method`), resynchronise les flux du compte |
 | `disconnectListingProvider` | `{ provider }` | Supprime token, compte et tous les flux alimentés par ce compte |
-| `refreshListingProviderAlerts` | `{ provider }` | Relit la liste des alertes |
+| `refetchListingProvider` | `{ provider }` | Bouton « Actualiser les annonces » (Profil) : relit la liste des alertes et **toutes les pages** des alertes liées de l'appelant (même passage que le balayage de 3 h). Cooldown de 2 min (`last_refetch_at`). Renvoie `{ alerts, feeds, newItems, expiredItems }` |
 | `linkSearchListToAlert` | `{ groupId, listId, alertId \| null }` | Lie (ou délie) une recherche à une alerte **de l'appelant**, puis remplit le flux immédiatement |
 
 Contrôles : appelant authentifié, membre du groupe, recherche existante, alerte
@@ -71,7 +71,7 @@ appartenant à son compte. Changer d'alerte vide l'ancien flux.
 
 ### Sync
 
-- **Seules les alertes liées à une recherche** sont lues ; la liste des noms d'alertes n'est relue qu'au balayage de 3 h (ou via « Actualiser »).
+- **Seules les alertes liées à une recherche** sont lues ; la liste des noms d'alertes n'est relue qu'au balayage de 3 h (ou via « Actualiser les annonces »).
 - Passage normal : page 1, puis la suivante **seulement si la page apportait du nouveau** (≤ 3 pages) → en général 1 requête Jinka. ~30 passages/jour ≈ 35–50 requêtes Jinka/jour.
 - Les annonces **inchangées ne sont pas réécrites** (quota d'écritures Firestore : 20 000/jour gratuits, partagé avec l'app).
 - Une alerte supprimée sur Jinka (404) ne marque en `error` que ses propres flux.
