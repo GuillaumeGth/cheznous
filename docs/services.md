@@ -53,11 +53,15 @@ App : ListingsDataSource (feed | mock) → listingsStore → écran swipe
 | `GET /apiv2/alert/{id}/dashboard?filter=all&page=N` | annonces d'une alerte (`ads[]`, `pagination.nbPages`) |
 | `GET /alert_result_view_ad?ad=…&alert_token=…` | redirection vers l'annonce d'origine (utilisée comme `url` si pas de `webview_link`) |
 
+### Comptes Google / Apple
+
+Un compte Jinka créé avec Google, Apple ou un code par email **n'a pas de mot de passe** : `POST /user/auth` ne peut pas servir. L'utilisateur colle alors le token d'une session jinka.fr ouverte dans un navigateur (en-tête `Authorization` d'une requête vers `api.jinka.fr`, ou cookie `LA_API_TOKEN`) ; `Bearer ` est accepté. Le serveur le valide en lisant les alertes. À expiration, il faut coller un nouveau token (durée de vie inconnue).
+
 ### Callables
 
 | Nom | Entrée | Effet |
 |---|---|---|
-| `connectListingProvider` | `{ provider, email, password }` | Authentifie, stocke le token, écrit `users/{uid}/provider_accounts/jinka`, resynchronise les flux du compte |
+| `connectListingProvider` | `{ provider, email, password }` **ou** `{ provider, token }` | Authentifie (ou valide le token en lisant les alertes), stocke le token, écrit `users/{uid}/provider_accounts/jinka` (`auth_method`), resynchronise les flux du compte |
 | `disconnectListingProvider` | `{ provider }` | Supprime token, compte et tous les flux alimentés par ce compte |
 | `refreshListingProviderAlerts` | `{ provider }` | Relit la liste des alertes |
 | `linkSearchListToAlert` | `{ groupId, listId, alertId \| null }` | Lie (ou délie) une recherche à une alerte **de l'appelant**, puis remplit le flux immédiatement |

@@ -20,6 +20,20 @@ export async function connectProvider(email: string, password: string): Promise<
   return data.alerts;
 }
 
+/**
+ * For Jinka accounts created with Google/Apple (no password): a bearer token
+ * copied from a signed-in jinka.fr session (`Authorization` header or the
+ * `LA_API_TOKEN` cookie). The server validates it before storing it.
+ */
+export async function connectProviderWithToken(token: string): Promise<ProviderAlert[]> {
+  alog('Callable:connectListingProvider (token)');
+  const call = httpsCallable<{ provider: ProviderId; token: string }, AlertsResult>(
+    functions, 'connectListingProvider',
+  );
+  const { data } = await call({ provider: PROVIDER, token });
+  return data.alerts;
+}
+
 export async function disconnectProvider(): Promise<void> {
   alog('Callable:disconnectListingProvider');
   await httpsCallable<{ provider: ProviderId }, void>(functions, 'disconnectListingProvider')({ provider: PROVIDER });

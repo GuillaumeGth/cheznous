@@ -1,6 +1,6 @@
 import { ProviderAuthError } from './providers/ListingProvider';
 import { SyncDeps, syncFeeds } from './sync';
-import { FeedLink, ProviderAlert, ProviderId } from './types';
+import { FeedLink, ProviderAlert, ProviderAuthMethod, ProviderId } from './types';
 
 // Business logic behind the callables. Kept free of firebase-functions so it
 // can be unit-tested; `index.ts` maps `AppError` to `HttpsError`.
@@ -38,28 +38,65 @@ function providerId(value: unknown): ProviderId {
   return value as ProviderId;
 }
 
-/** Validates credentials against the provider, stores the token, lists alerts. */
+/** Accepts `Bearer <token>` or the raw token (header value or cookie). */
+export function normalizeToken(value: string): string {
+  return value.trim().replace(/^Bearer(\s+|$)/i, '').trim();
+}
+
+/** Best effort: the email claim of a JWT, for display only (never trusted). */
+export function emailFromToken(token: string): string | null {
+  const payload = token.split('.')[1];
+  if (!payload) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>;
+    const email = claims.email ?? claims.username;
+    return typeof email === 'string' && email.includes('@') ? email : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Connects the caller's provider account, either with email + password, or
+ * with a bearer token copied from a signed-in browser session (Google/Apple
+ * accounts have no password). Stores the token, lists alerts.
+ */
 export async function connectProvider(deps: SyncDeps, uid: string, input: unknown): Promise<{ alerts: ProviderAlert[] }> {
   const data = record(input);
   const provider = providerId(data.provider);
-  const email = str(data.email, 'email', 254).trim();
-  const password = str(data.password, 'password', 256);
   const client = deps.providers[provider];
 
   let token: string;
+  let email: string;
+  let authMethod: ProviderAuthMethod;
+  let alerts: ProviderAlert[];
   try {
-    token = await client.authenticate(email, password);
+    if (data.token !== undefined) {
+      token = normalizeToken(str(data.token, 'token', 8192));
+      if (!token) throw new AppError('invalid-argument', 'Champ invalide : token');
+      authMethod = 'token';
+      alerts = await client.listAlerts(token); // validates the token
+      email = emailFromToken(token) ?? '';
+    } else {
+      email = str(data.email, 'email', 254).trim();
+      token = await client.authenticate(email, str(data.password, 'password', 256));
+      authMethod = 'password';
+      alerts = await client.listAlerts(token);
+    }
   } catch (e) {
-    if (e instanceof ProviderAuthError) throw new AppError('permission-denied', e.message);
+    if (e instanceof AppError) throw e;
+    if (e instanceof ProviderAuthError) {
+      throw new AppError('permission-denied', data.token !== undefined ? 'Token Jinka invalide ou expiré' : e.message);
+    }
     throw new AppError('unavailable', 'Jinka est injoignable, réessaie plus tard');
   }
-  const alerts = await client.listAlerts(token);
 
   await deps.store.saveToken(uid, provider, token);
   await deps.store.saveAccount({
     user_id: uid,
     provider,
     email,
+    auth_method: authMethod,
     status: 'ok',
     alerts,
     connected_at: deps.now().toISOString(),

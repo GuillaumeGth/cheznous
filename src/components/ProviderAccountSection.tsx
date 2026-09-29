@@ -1,10 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useProviderAccount } from '@/hooks/useProviderAccount';
 import {
-  callableErrorMessage, connectProvider, disconnectProvider, refreshProviderAlerts,
+  callableErrorMessage, connectProvider, connectProviderWithToken, disconnectProvider, refreshProviderAlerts,
 } from '@/services/providerAccounts';
+import { ProviderAuthMethod } from '@/types';
 import { styles } from '@/styles/providerAccount.styles';
 
 type Props = {
@@ -12,6 +13,11 @@ type Props = {
 };
 
 type Busy = 'connect' | 'refresh' | 'disconnect' | null;
+
+const MODES: { value: ProviderAuthMethod; label: string }[] = [
+  { value: 'token', label: 'Google / Apple' },
+  { value: 'password', label: 'Email + mot de passe' },
+];
 
 function formatSync(iso: string | null): string {
   if (!iso) return 'Pas encore synchronisé';
@@ -24,16 +30,21 @@ function formatSync(iso: string | null): string {
 // the server (callable), which keeps only the token.
 export default function ProviderAccountSection({ onMessage }: Props) {
   const account = useProviderAccount();
+  const [mode, setMode] = useState<ProviderAuthMethod>('token');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [token, setToken] = useState('');
   const [busy, setBusy] = useState<Busy>(null);
 
   const connect = useCallback(async () => {
-    if (!email.trim() || !password) return;
+    if (mode === 'token' ? !token.trim() : !email.trim() || !password) return;
     setBusy('connect');
     try {
-      const alerts = await connectProvider(email.trim(), password);
+      const alerts = mode === 'token'
+        ? await connectProviderWithToken(token.trim())
+        : await connectProvider(email.trim(), password);
       setPassword('');
+      setToken('');
       onMessage(
         alerts.length > 0
           ? `Jinka connecté · ${alerts.length} alerte${alerts.length > 1 ? 's' : ''}`
@@ -45,7 +56,7 @@ export default function ProviderAccountSection({ onMessage }: Props) {
     } finally {
       setBusy(null);
     }
-  }, [email, password, onMessage]);
+  }, [mode, email, password, token, onMessage]);
 
   const refresh = useCallback(async () => {
     setBusy('refresh');
@@ -80,7 +91,7 @@ export default function ProviderAccountSection({ onMessage }: Props) {
   }
 
   const connected = account !== null && account.status !== 'expired';
-  const canSubmit = !!email.trim() && !!password && busy === null;
+  const canSubmit = busy === null && (mode === 'token' ? !!token.trim() : !!email.trim() && !!password);
 
   return (
     <View style={styles.card}>
@@ -91,7 +102,9 @@ export default function ProviderAccountSection({ onMessage }: Props) {
         <View style={styles.headerTexts}>
           <Text style={styles.title}>Jinka</Text>
           <Text style={styles.subtitle}>
-            {connected ? `${account.email} · ${formatSync(account.last_sync_at)}` : 'Source des annonces'}
+            {connected
+              ? `${account.email || 'Compte connecté'} · ${formatSync(account.last_sync_at)}`
+              : 'Source des annonces'}
           </Text>
         </View>
       </View>
@@ -100,7 +113,9 @@ export default function ProviderAccountSection({ onMessage }: Props) {
         <View style={styles.warning}>
           <Ionicons name="warning-outline" size={16} color="#B26A00" />
           <Text style={styles.warningText}>
-            Ta session Jinka a expiré : les recherches liées ne se mettent plus à jour. Reconnecte-toi.
+            {account.auth_method === 'token'
+              ? 'Ton token Jinka a expiré : les recherches liées ne se mettent plus à jour. Colle un nouveau token.'
+              : 'Ta session Jinka a expiré : les recherches liées ne se mettent plus à jour. Reconnecte-toi.'}
           </Text>
         </View>
       )}
@@ -144,32 +159,60 @@ export default function ProviderAccountSection({ onMessage }: Props) {
       ) : (
         <>
           <Text style={styles.hint}>
-            Connecte ton compte Jinka pour partager tes alertes avec ton groupe. Ton mot de passe
-            n'est pas conservé.
+            Connecte ton compte Jinka pour partager tes alertes avec ton groupe.
           </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Email Jinka"
-            placeholderTextColor="#aaa"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="username"
-            autoComplete="email"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Mot de passe Jinka"
-            placeholderTextColor="#aaa"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            textContentType="password"
-            autoComplete="password"
-            onSubmitEditing={connect}
-          />
+          <View style={styles.modeRow}>
+            {MODES.map(({ value, label }) => (
+              <ModeChip key={value} value={value} label={label} active={mode === value} onSelect={setMode} />
+            ))}
+          </View>
+          {mode === 'token' ? (
+            <>
+              <Text style={styles.hint}>
+                Compte créé avec Google ou Apple : sur ordinateur, connecte-toi à jinka.fr, ouvre
+                l'inspecteur (F12 → Réseau), clique sur une requête vers api.jinka.fr et copie la
+                valeur de l'en-tête « Authorization » (ou du cookie LA_API_TOKEN). Colle-la ici.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Token Jinka"
+                placeholderTextColor="#aaa"
+                value={token}
+                onChangeText={setToken}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                onSubmitEditing={connect}
+              />
+            </>
+          ) : (
+            <>
+              <Text style={styles.hint}>Ton mot de passe n'est pas conservé.</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Email Jinka"
+                placeholderTextColor="#aaa"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                textContentType="username"
+                autoComplete="email"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Mot de passe Jinka"
+                placeholderTextColor="#aaa"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                textContentType="password"
+                autoComplete="password"
+                onSubmitEditing={connect}
+              />
+            </>
+          )}
           <TouchableOpacity
             style={[styles.primaryBtn, !canSubmit && styles.primaryBtnDisabled]}
             onPress={connect}
@@ -184,3 +227,19 @@ export default function ProviderAccountSection({ onMessage }: Props) {
     </View>
   );
 }
+
+type ModeChipProps = {
+  value: ProviderAuthMethod;
+  label: string;
+  active: boolean;
+  onSelect: (value: ProviderAuthMethod) => void;
+};
+
+const ModeChip = memo(function ModeChip({ value, label, active, onSelect }: ModeChipProps) {
+  const handlePress = useCallback(() => onSelect(value), [onSelect, value]);
+  return (
+    <TouchableOpacity style={[styles.modeChip, active && styles.modeChipActive]} onPress={handlePress}>
+      <Text style={[styles.modeChipText, active && styles.modeChipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+});

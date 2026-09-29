@@ -1,5 +1,6 @@
 import {
-  AppError, connectProvider, disconnectProvider, linkSearchList, refreshProviderAlerts,
+  AppError, connectProvider, disconnectProvider, emailFromToken, linkSearchList, normalizeToken,
+  refreshProviderAlerts,
 } from '../accounts';
 import { FakeProvider, FIXED_NOW, MemoryFeedStore, feedLink, makeListing } from './fakes';
 
@@ -51,6 +52,26 @@ describe('connectProvider', () => {
     await expectAppError(connectProvider(deps, 'alice', null), 'invalid-argument');
     await expectAppError(connectProvider(deps, 'alice', { provider: 'other', email: 'a', password: 'b' }), 'invalid-argument');
     await expectAppError(connectProvider(deps, 'alice', { provider: 'jinka', email: '', password: 'b' }), 'invalid-argument');
+  });
+
+  it('connects with a pasted bearer token (Google/Apple accounts)', async () => {
+    const { store, provider, deps } = setup();
+    provider.validTokens.add('google-tok');
+
+    const { alerts } = await connectProvider(deps, 'alice', { provider: 'jinka', token: '  Bearer google-tok ' });
+
+    expect(alerts).toEqual([{ id: 'a1', name: 'Paris 11' }]);
+    expect(store.tokens.get('alice/jinka')).toBe('google-tok');
+    expect(store.accounts.get('alice/jinka')).toMatchObject({ auth_method: 'token', status: 'ok' });
+    expect(provider.calls.some((c) => c.startsWith('auth:'))).toBe(false);
+  });
+
+  it('rejects an invalid token without storing anything', async () => {
+    const { store, deps } = setup();
+
+    await expectAppError(connectProvider(deps, 'alice', { provider: 'jinka', token: 'nope' }), 'permission-denied');
+    await expectAppError(connectProvider(deps, 'alice', { provider: 'jinka', token: 'Bearer ' }), 'invalid-argument');
+    expect(store.tokens.size).toBe(0);
   });
 
   it('re-syncs the feeds of an expired account on reconnect', async () => {
@@ -140,5 +161,20 @@ describe('disconnectProvider', () => {
     expect(store.tokens.size).toBe(0);
     expect(store.accounts.size).toBe(0);
     expect(store.feeds.size).toBe(0);
+  });
+});
+
+describe('token helpers', () => {
+  it('normalizes header values and raw cookies', () => {
+    expect(normalizeToken('Bearer abc')).toBe('abc');
+    expect(normalizeToken(' bearer  abc ')).toBe('abc');
+    expect(normalizeToken('abc')).toBe('abc');
+  });
+
+  it('reads the email claim of a JWT, best effort', () => {
+    const jwt = (claims: object) => `h.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.s`;
+    expect(emailFromToken(jwt({ email: 'a@x.fr' }))).toBe('a@x.fr');
+    expect(emailFromToken(jwt({ sub: '42' }))).toBeNull();
+    expect(emailFromToken('opaque-token')).toBeNull();
   });
 });

@@ -193,10 +193,15 @@ export type ProviderSyncStatus = 'ok' | 'expired' | 'error';
 
 // Firestore: `users/{uid}/provider_accounts/{provider}` (owner read-only).
 // The token lives server-side; the password is never stored.
+// 'token' = bearer token pasted by the user (Google/Apple Jinka accounts have
+// no password); 'password' = email + password exchanged server-side.
+export type ProviderAuthMethod = 'password' | 'token';
+
 export type ProviderAccount = {
   user_id: string;
   provider: ProviderId;
-  email: string;
+  email: string; // may be '' for token connections
+  auth_method: ProviderAuthMethod;
   status: ProviderSyncStatus;
   alerts: ProviderAlert[];
   connected_at: string;

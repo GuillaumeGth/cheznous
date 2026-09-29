@@ -37,10 +37,19 @@ export type ProviderAlert = {
 export type SyncStatus = 'ok' | 'expired' | 'error';
 
 /** `users/{uid}/provider_accounts/{provider}` — readable by its owner only. */
+/**
+ * - `password`: email + password exchanged for a token (kajin's flow).
+ * - `token`: bearer token pasted by the user — for accounts created with
+ *   Google/Apple/email code, which have no provider password.
+ */
+export type ProviderAuthMethod = 'password' | 'token';
+
 export type ProviderAccount = {
   user_id: string;
   provider: ProviderId;
+  /** Account email when known (password flow, or read from the token). */
   email: string;
+  auth_method: ProviderAuthMethod;
   status: SyncStatus;
   alerts: ProviderAlert[];
   connected_at: string;
