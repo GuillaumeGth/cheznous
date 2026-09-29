@@ -29,6 +29,14 @@ export type Listing = {
 
 export type ProviderId = 'jinka';
 
+/**
+ * The app uses a single, app-wide provider account (the admin's Jinka session):
+ * its token is stored under this owner id and it owns every feed. Its account
+ * doc (`users/global/provider_accounts/{provider}`) is readable by every
+ * signed-in user (alerts for the picker) and lists the admins.
+ */
+export const GLOBAL_OWNER = 'global';
+
 export type ProviderAlert = {
   id: string;
   name: string;
@@ -57,6 +65,10 @@ export type ProviderAccount = {
   last_error: string | null;
   /** Last manual refetch (cooldown). */
   last_refetch_at?: string | null;
+  /** Token expiry (JWT `exp`), to warn the admin before it lapses. */
+  token_expires_at?: string | null;
+  /** Users allowed to replace the token and refetch (global account only). */
+  admin_uids?: string[];
 };
 
 /**

@@ -53,21 +53,24 @@ App : ListingsDataSource (feed | mock) → listingsStore → écran swipe
 | `GET /apiv2/alert/{id}/dashboard?filter=all&page=N` | annonces d'une alerte (`ads[]`, `pagination.nbPages`) |
 | `GET /alert_result_view_ad?ad=…&alert_token=…` | redirection vers l'annonce d'origine (utilisée comme `url` si pas de `webview_link`) |
 
-### Comptes Google / Apple
+### Compte Jinka unique (global)
 
-Un compte Jinka créé avec Google, Apple ou un code par email **n'a pas de mot de passe** : `POST /user/auth` ne peut pas servir. L'utilisateur colle alors le token d'une session jinka.fr ouverte dans un navigateur (en-tête `Authorization` d'une requête vers `api.jinka.fr`, ou cookie `LA_API_TOKEN`) ; `Bearer ` est accepté. Le serveur le valide en lisant les alertes. À expiration, il faut coller un nouveau token (durée de vie inconnue).
+L'app tourne sur **un seul compte Jinka**, celui de l'administrateur : son token de session (JWT valable ~30 jours, cookie `LA_API_TOKEN` ou en-tête `Authorization` d'une session jinka.fr) est stocké côté serveur sous `provider_tokens/global_jinka`. Aucun autre utilisateur ne configure quoi que ce soit : tout le monde voit les alertes de ce compte et peut les lier à ses recherches.
+
+- `users/global/provider_accounts/jinka` : statut, alertes, `token_expires_at`, `admin_uids` — lisible par tout utilisateur connecté, écrit par le serveur.
+- Tous les flux ont `owner_id: 'global'` (jamais considérés orphelins par la sync).
+- L'admin voit **Profil → Annonces** : statut, expiration (alerte 5 jours avant), « Actualiser les annonces », « Remplacer le token ».
 
 ### Callables
 
 | Nom | Entrée | Effet |
 |---|---|---|
-| `connectListingProvider` | `{ provider, email, password }` **ou** `{ provider, token }` | Authentifie (ou valide le token en lisant les alertes), stocke le token, écrit `users/{uid}/provider_accounts/jinka` (`auth_method`), resynchronise les flux du compte |
-| `disconnectListingProvider` | `{ provider }` | Supprime token, compte et tous les flux alimentés par ce compte |
-| `refetchListingProvider` | `{ provider }` | Bouton « Actualiser les annonces » (Profil) : relit la liste des alertes et **toutes les pages** des alertes liées de l'appelant (même passage que le balayage de 3 h). Cooldown de 2 min (`last_refetch_at`). Renvoie `{ alerts, feeds, newItems, expiredItems }` |
-| `linkSearchListToAlert` | `{ groupId, listId, alertId \| null }` | Lie (ou délie) une recherche à une alerte **de l'appelant**, puis remplit le flux immédiatement |
+| `setGlobalListingProviderToken` | `{ token }` | **Admin** : remplace le token global (validé en lisant les alertes), met à jour `token_expires_at`, resynchronise les flux |
+| `refetchListingProvider` | `{ provider }` | **Admin**, bouton « Actualiser les annonces » (Profil) : relit la liste des alertes et **toutes les pages** des alertes liées (même passage que le balayage de 3 h). Cooldown de 2 min (`last_refetch_at`). Renvoie `{ alerts, feeds, newItems, expiredItems }` |
+| `linkSearchListToAlert` | `{ groupId, listId, alertId \| null }` | N'importe quel membre du groupe lie (ou délie) une recherche à une alerte du compte global, puis remplit le flux immédiatement |
 
 Contrôles : appelant authentifié, membre du groupe, recherche existante, alerte
-appartenant à son compte. Changer d'alerte vide l'ancien flux.
+existante sur le compte global. Changer d'alerte vide l'ancien flux.
 
 ### Sync
 

@@ -208,7 +208,13 @@ export type ProviderAccount = {
   last_sync_at: string | null;
   last_error: string | null;
   last_refetch_at?: string | null; // last manual refetch (server-side cooldown)
+  token_expires_at?: string | null; // JWT expiry of the app-wide token
+  admin_uids?: string[]; // who may replace the token / refetch
 };
+
+// The app runs on one app-wide Jinka account (the admin's session token):
+// `users/global/provider_accounts/jinka`. Mirrors GLOBAL_OWNER server-side.
+export const GLOBAL_PROVIDER_OWNER = 'global';
 
 // Firestore: `groups/{groupId}/feeds/{listId}` — which provider alert feeds a
 // search list. Its synced listings are in the `items` subcollection.

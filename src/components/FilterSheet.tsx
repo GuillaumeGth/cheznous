@@ -354,7 +354,7 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
 
           {/* Source des annonces (alerte Jinka liée à cette recherche) */}
           <Section title="Source des annonces">
-            <FeedSourcePicker groupId={groupId} listId={activeTab} members={members} />
+            <FeedSourcePicker groupId={groupId} listId={activeTab} />
           </Section>
 
           {/* Type de transaction */}

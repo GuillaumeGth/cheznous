@@ -77,16 +77,5 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   alertName: { flex: 1, fontSize: 13, color: '#1A1A2E' },
-  modeRow: { flexDirection: 'row', gap: 8 },
-  modeChip: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 9,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-  },
-  modeChipActive: { borderColor: '#4A6CF7', backgroundColor: '#EEF1FF' },
-  modeChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
-  modeChipTextActive: { color: '#4A6CF7' },
+  flexBtn: { flex: 1 },
 });

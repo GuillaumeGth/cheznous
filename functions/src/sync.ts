@@ -1,7 +1,7 @@
 import { logger } from 'firebase-functions/logger';
 import { FeedStore } from './store/FeedStore';
 import { ListingProvider, ProviderAlertNotFoundError, ProviderAuthError } from './providers/ListingProvider';
-import { FeedLink, GroupSummary, Listing, ProviderId } from './types';
+import { FeedLink, GLOBAL_OWNER, GroupSummary, Listing, ProviderId } from './types';
 
 /**
  * Only the alerts linked to a search list are read — never anything else.
@@ -66,14 +66,16 @@ export async function syncFeeds(
 }
 
 // A feed is orphaned once its list is deleted, its group is gone, or its owner
-// left the group (their account must stop feeding that group).
+// left the group (their account must stop feeding that group). The app-wide
+// account isn't a group member and feeds every group.
 async function dropOrphanFeeds(store: FeedStore, feeds: FeedLink[], report: SyncReport): Promise<FeedLink[]> {
   const groups = new Map<string, GroupSummary | null>();
   const valid: FeedLink[] = [];
   for (const feed of feeds) {
     if (!groups.has(feed.group_id)) groups.set(feed.group_id, await store.getGroup(feed.group_id));
     const group = groups.get(feed.group_id);
-    if (group && group.list_ids.includes(feed.list_id) && group.member_ids.includes(feed.owner_id)) {
+    const ownerOk = feed.owner_id === GLOBAL_OWNER || !!group?.member_ids.includes(feed.owner_id);
+    if (group && group.list_ids.includes(feed.list_id) && ownerOk) {
       valid.push(feed);
     } else {
       await store.deleteFeed(feed.group_id, feed.list_id);

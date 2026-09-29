@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
-import { ProviderAccount } from '@/types';
+import { GLOBAL_PROVIDER_OWNER, ProviderAccount } from '@/types';
 
 /**
- * Live view of the current user's Jinka account (status, alerts, last sync).
- * `undefined` while loading, `null` when not connected.
+ * Live view of the app-wide Jinka account (status, alerts, token expiry,
+ * admins). Shared by every user. `undefined` while loading, `null` when the
+ * app has no Jinka account yet.
  */
 export function useProviderAccount(): ProviderAccount | null | undefined {
   const uid = useAuthStore((s) => s.firebaseUser?.uid);
@@ -18,7 +19,7 @@ export function useProviderAccount(): ProviderAccount | null | undefined {
       return;
     }
     return onSnapshot(
-      doc(db, 'users', uid, 'provider_accounts', 'jinka'),
+      doc(db, 'users', GLOBAL_PROVIDER_OWNER, 'provider_accounts', 'jinka'),
       (snap) => setAccount(snap.exists() ? (snap.data() as ProviderAccount) : null),
       () => setAccount(null),
     );

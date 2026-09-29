@@ -36,10 +36,11 @@ service cloud.firestore {
       allow delete: if isMember();
     }
 
-    // Listing-provider account (Jinka…): status + alerts, visible to its owner.
-    // Written only by Cloud Functions (Admin SDK bypasses rules).
+    // Listing-provider account (Jinka…): status + alerts. The app-wide account
+    // (`users/global/...`) is readable by every signed-in user (alert picker,
+    // admin list). Written only by Cloud Functions (Admin SDK bypasses rules).
     match /users/{userId}/provider_accounts/{provider} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && (request.auth.uid == userId || userId == 'global');
       allow write: if false;
     }
 

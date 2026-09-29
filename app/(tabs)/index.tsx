@@ -214,7 +214,7 @@ export default function SwipeScreen() {
             <Text style={styles.emptyTitle}>Plus d'annonces</Text>
             <Text style={styles.emptyDesc}>
               {feedLink?.status === 'expired'
-                ? 'La session Jinka liée a expiré : reconnecte-la dans le profil'
+                ? "Le token Jinka de l'app a expiré : l'administrateur doit le remplacer"
                 : "Élargis tes filtres ou attends la prochaine synchro Jinka"}
             </Text>
             <TouchableOpacity onPress={handleReload}>

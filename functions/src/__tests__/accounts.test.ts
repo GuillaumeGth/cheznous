@@ -1,211 +1,159 @@
 import {
-  AppError, connectProvider, disconnectProvider, emailFromToken, linkSearchList, normalizeToken,
-  REFETCH_COOLDOWN_MS, refetchProvider,
+  AppError, emailFromToken, expiryFromToken, linkSearchList, normalizeToken, REFETCH_COOLDOWN_MS,
+  refetchProvider, setGlobalToken,
 } from '../accounts';
-import { FakeProvider, FIXED_NOW, MemoryFeedStore, feedLink, makeListing } from './fakes';
+import { FakeProvider, FIXED_NOW, MemoryFeedStore, makeListing } from './fakes';
+import { GLOBAL_OWNER, ProviderAccount } from '../types';
+
+const ADMIN = 'alice';
+
+// App-wide account as bootstrapped by the migration: alice is the admin.
+function globalAccount(overrides: Partial<ProviderAccount> = {}): ProviderAccount {
+  return {
+    user_id: GLOBAL_OWNER, provider: 'jinka', email: 'alice@x.fr', auth_method: 'token', status: 'ok',
+    alerts: [], connected_at: '2026-01-01T00:00:00Z', last_sync_at: null, last_error: null,
+    admin_uids: [ADMIN],
+    ...overrides,
+  };
+}
 
 function setup() {
   const store = new MemoryFeedStore();
   const provider = new FakeProvider();
-  provider.validCredentials.set('alice@x.fr', 'secret');
-  provider.alerts = [{ id: 'a1', name: 'Paris 11' }];
+  provider.alerts = [{ id: 'a1', name: 'SO le J' }];
   provider.pages.set('a1', [[makeListing('jinka_1')]]);
+  provider.validTokens.add('tok');
+  store.accounts.set(`${GLOBAL_OWNER}/jinka`, globalAccount());
+  store.tokens.set(`${GLOBAL_OWNER}/jinka`, 'tok');
   store.groups.set('g1', { member_ids: ['alice', 'bob'], list_ids: ['l1'] });
   const deps = { store, providers: { jinka: provider }, now: () => FIXED_NOW };
   return { store, provider, deps };
 }
-
-const connect = (deps: ReturnType<typeof setup>['deps']) =>
-  connectProvider(deps, 'alice', { provider: 'jinka', email: 'alice@x.fr', password: 'secret' });
 
 async function expectAppError(p: Promise<unknown>, code: AppError['code']) {
   await expect(p).rejects.toBeInstanceOf(AppError);
   await expect(p).rejects.toMatchObject({ code });
 }
 
-describe('connectProvider', () => {
-  it('stores the token and the account (never the password)', async () => {
-    const { store, deps } = setup();
+const jwt = (claims: object) => `h.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.s`;
 
-    const { alerts } = await connect(deps);
-
-    expect(alerts).toEqual([{ id: 'a1', name: 'Paris 11' }]);
-    expect(store.tokens.get('alice/jinka')).toBe('token-alice@x.fr');
-    const account = store.accounts.get('alice/jinka')!;
-    expect(account).toMatchObject({ email: 'alice@x.fr', status: 'ok', alerts });
-    expect(JSON.stringify(account)).not.toContain('secret');
-  });
-
-  it('rejects wrong credentials without storing anything', async () => {
-    const { store, deps } = setup();
-
-    await expectAppError(
-      connectProvider(deps, 'alice', { provider: 'jinka', email: 'alice@x.fr', password: 'nope' }),
-      'permission-denied',
-    );
-    expect(store.tokens.size).toBe(0);
-    expect(store.accounts.size).toBe(0);
-  });
-
-  it('validates the payload', async () => {
-    const { deps } = setup();
-    await expectAppError(connectProvider(deps, 'alice', null), 'invalid-argument');
-    await expectAppError(connectProvider(deps, 'alice', { provider: 'other', email: 'a', password: 'b' }), 'invalid-argument');
-    await expectAppError(connectProvider(deps, 'alice', { provider: 'jinka', email: '', password: 'b' }), 'invalid-argument');
-  });
-
-  it('connects with a pasted bearer token (Google/Apple accounts)', async () => {
+describe('setGlobalToken', () => {
+  it('lets the admin replace the app-wide token, with its expiry', async () => {
     const { store, provider, deps } = setup();
-    provider.validTokens.add('google-tok');
+    const token = jwt({ email: 'alice@x.fr', exp: 1_800_000_000 });
+    provider.validTokens.add(token);
 
-    const { alerts } = await connectProvider(deps, 'alice', { provider: 'jinka', token: '  Bearer google-tok ' });
+    const { alerts, expiresAt } = await setGlobalToken(deps, ADMIN, { token: `Bearer ${token}` });
 
-    expect(alerts).toEqual([{ id: 'a1', name: 'Paris 11' }]);
-    expect(store.tokens.get('alice/jinka')).toBe('google-tok');
-    expect(store.accounts.get('alice/jinka')).toMatchObject({ auth_method: 'token', status: 'ok' });
-    expect(provider.calls.some((c) => c.startsWith('auth:'))).toBe(false);
+    expect(alerts).toEqual(provider.alerts);
+    expect(expiresAt).toBe(new Date(1_800_000_000_000).toISOString());
+    expect(store.tokens.get(`${GLOBAL_OWNER}/jinka`)).toBe(token);
+    expect(store.accounts.get(`${GLOBAL_OWNER}/jinka`)).toMatchObject({
+      status: 'ok', alerts, token_expires_at: expiresAt, admin_uids: [ADMIN],
+    });
   });
 
-  it('rejects an invalid token without storing anything', async () => {
+  it('is refused to non-admins and for invalid tokens', async () => {
     const { store, deps } = setup();
 
-    await expectAppError(connectProvider(deps, 'alice', { provider: 'jinka', token: 'nope' }), 'permission-denied');
-    await expectAppError(connectProvider(deps, 'alice', { provider: 'jinka', token: 'Bearer ' }), 'invalid-argument');
-    expect(store.tokens.size).toBe(0);
+    await expectAppError(setGlobalToken(deps, 'bob', { token: 'tok' }), 'permission-denied');
+    await expectAppError(setGlobalToken(deps, ADMIN, { token: 'nope' }), 'permission-denied');
+    await expectAppError(setGlobalToken(deps, ADMIN, { token: 'Bearer ' }), 'invalid-argument');
+    expect(store.tokens.get(`${GLOBAL_OWNER}/jinka`)).toBe('tok');
   });
 
-  it('re-syncs the feeds of an expired account on reconnect', async () => {
-    const { store, deps } = setup();
-    await store.saveFeed(feedLink({ status: 'expired' }));
+  it('revives expired feeds right away', async () => {
+    const { store, provider, deps } = setup();
+    await linkSearchList(deps, 'bob', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
+    await store.updateFeed('g1', 'l1', { status: 'expired' });
+    provider.validTokens.add('fresh');
+    provider.pages.set('a1', [[makeListing('jinka_1'), makeListing('jinka_2')]]);
 
-    await connect(deps);
+    await setGlobalToken(deps, ADMIN, { token: 'fresh' });
 
     expect(store.feeds.get('g1/l1')!.status).toBe('ok');
-    expect(store.items.get('g1/l1')!.size).toBe(1);
+    expect(store.items.get('g1/l1')!.size).toBe(2);
   });
 });
 
 describe('linkSearchList', () => {
-  it('links the list to the alert and fills the feed immediately', async () => {
+  it("lets any member link a list to one of the app's alerts", async () => {
     const { store, deps } = setup();
-    await connect(deps);
 
-    const { newItems } = await linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
+    const { newItems } = await linkSearchList(deps, 'bob', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
 
     expect(newItems).toBe(1);
-    expect(store.feeds.get('g1/l1')).toMatchObject({ owner_id: 'alice', alert_id: 'a1', alert_name: 'Paris 11' });
+    expect(store.feeds.get('g1/l1')).toMatchObject({ owner_id: GLOBAL_OWNER, alert_id: 'a1', alert_name: 'SO le J' });
   });
 
   it('refuses non-members, unknown lists and unknown alerts', async () => {
     const { deps } = setup();
-    await connect(deps);
-
     await expectAppError(linkSearchList(deps, 'mallory', { groupId: 'g1', listId: 'l1', alertId: 'a1' }), 'permission-denied');
-    await expectAppError(linkSearchList(deps, 'alice', { groupId: 'nope', listId: 'l1', alertId: 'a1' }), 'not-found');
-    await expectAppError(linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'nope', alertId: 'a1' }), 'not-found');
-    await expectAppError(linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'someone-elses' }), 'not-found');
+    await expectAppError(linkSearchList(deps, 'bob', { groupId: 'nope', listId: 'l1', alertId: 'a1' }), 'not-found');
+    await expectAppError(linkSearchList(deps, 'bob', { groupId: 'g1', listId: 'nope', alertId: 'a1' }), 'not-found');
+    await expectAppError(linkSearchList(deps, 'bob', { groupId: 'g1', listId: 'l1', alertId: 'zzz' }), 'not-found');
   });
 
-  it('requires a connected account', async () => {
-    const { deps } = setup();
-    await expectAppError(
-      linkSearchList(deps, 'bob', { groupId: 'g1', listId: 'l1', alertId: 'a1' }),
-      'failed-precondition',
-    );
-  });
-
-  it('clears the previous feed when switching to another alert', async () => {
+  it('reports an expired app session and flags the account', async () => {
     const { store, provider, deps } = setup();
-    await connect(deps);
-    await linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
-    provider.alerts = [...provider.alerts, { id: 'a2', name: 'Paris 20' }];
+    provider.validTokens.clear();
+
+    await expectAppError(linkSearchList(deps, 'bob', { groupId: 'g1', listId: 'l1', alertId: 'a1' }), 'failed-precondition');
+    expect(store.accounts.get(`${GLOBAL_OWNER}/jinka`)!.status).toBe('expired');
+    expect(store.tokens.has(`${GLOBAL_OWNER}/jinka`)).toBe(false);
+  });
+
+  it('clears the previous feed when switching alert, and unlinks with null', async () => {
+    const { store, provider, deps } = setup();
+    await linkSearchList(deps, 'bob', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
+    provider.alerts = [...provider.alerts, { id: 'a2', name: 'Paris' }];
     provider.pages.set('a2', [[makeListing('jinka_9')]]);
 
     await linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'a2' });
-
     expect([...store.items.get('g1/l1')!.keys()]).toEqual(['jinka_9']);
-  });
-
-  it('unlinks with alertId null', async () => {
-    const { store, deps } = setup();
-    await connect(deps);
-    await linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
 
     await linkSearchList(deps, 'bob', { groupId: 'g1', listId: 'l1', alertId: null });
-
     expect(store.feeds.size).toBe(0);
-    expect(store.items.size).toBe(0);
   });
 });
 
 describe('refetchProvider', () => {
+  const later = () => new Date(FIXED_NOW.getTime() + REFETCH_COOLDOWN_MS);
+
   it('re-reads every page of the linked alerts and reports what changed', async () => {
     const { store, provider, deps } = setup();
-    await connect(deps);
     provider.pages.set('a1', [[makeListing('jinka_1')], [makeListing('jinka_2')]]);
-    await linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
-    // jinka_1 vanished from the alert, jinka_3 is new deep in page 2.
+    await linkSearchList(deps, 'bob', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
     provider.pages.set('a1', [[makeListing('jinka_2')], [makeListing('jinka_3')]]);
-    deps.now = () => new Date(FIXED_NOW.getTime() + REFETCH_COOLDOWN_MS);
+    deps.now = later;
 
-    const result = await refetchProvider(deps, 'alice', { provider: 'jinka' });
+    const result = await refetchProvider(deps, ADMIN, {});
 
     expect(result).toMatchObject({ feeds: 1, newItems: 1, expiredItems: 1 });
-    expect(result.alerts).toEqual(provider.alerts);
     expect(store.items.get('g1/l1')!.get('jinka_1')!.active).toBe(false);
   });
 
-  it('only refreshes the alert list when no search list is linked', async () => {
-    const { provider, deps } = setup();
-    await connect(deps);
-    provider.calls = [];
-    deps.now = () => new Date(FIXED_NOW.getTime() + REFETCH_COOLDOWN_MS);
+  it('is admin only and rate-limited', async () => {
+    const { deps } = setup();
+    await expectAppError(refetchProvider(deps, 'bob', {}), 'permission-denied');
 
-    const result = await refetchProvider(deps, 'alice', { provider: 'jinka' });
+    let now = later().getTime();
+    deps.now = () => new Date(now);
+    await refetchProvider(deps, ADMIN, {});
+    now += REFETCH_COOLDOWN_MS - 1000;
+    await expectAppError(refetchProvider(deps, ADMIN, {}), 'failed-precondition');
+    now += 1000;
+    await expect(refetchProvider(deps, ADMIN, {})).resolves.toBeDefined();
+  });
+
+  it('only refreshes the alert list when nothing is linked', async () => {
+    const { provider, deps } = setup();
+    deps.now = later;
+
+    const result = await refetchProvider(deps, ADMIN, {});
 
     expect(result).toMatchObject({ feeds: 0, newItems: 0 });
     expect(provider.calls).toEqual(['alerts']);
-  });
-
-  it('enforces a cooldown between two refetches', async () => {
-    const { deps } = setup();
-    await connect(deps);
-    let now = FIXED_NOW.getTime() + REFETCH_COOLDOWN_MS;
-    deps.now = () => new Date(now);
-
-    await refetchProvider(deps, 'alice', { provider: 'jinka' });
-    now += REFETCH_COOLDOWN_MS - 1000;
-    await expectAppError(refetchProvider(deps, 'alice', { provider: 'jinka' }), 'failed-precondition');
-    now += 1000;
-    await expect(refetchProvider(deps, 'alice', { provider: 'jinka' })).resolves.toBeDefined();
-  });
-
-  it('requires a connected account and reports an expired session', async () => {
-    const { store, provider, deps } = setup();
-    await expectAppError(refetchProvider(deps, 'alice', { provider: 'jinka' }), 'failed-precondition');
-
-    await connect(deps);
-    await linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
-    provider.validTokens.clear();
-    deps.now = () => new Date(FIXED_NOW.getTime() + REFETCH_COOLDOWN_MS);
-
-    await expectAppError(refetchProvider(deps, 'alice', { provider: 'jinka' }), 'failed-precondition');
-    expect(store.accounts.get('alice/jinka')!.status).toBe('expired');
-    expect(store.tokens.has('alice/jinka')).toBe(false);
-  });
-});
-
-describe('disconnectProvider', () => {
-  it('removes token, account and every feed the account was feeding', async () => {
-    const { store, deps } = setup();
-    await connect(deps);
-    await linkSearchList(deps, 'alice', { groupId: 'g1', listId: 'l1', alertId: 'a1' });
-
-    await disconnectProvider(deps, 'alice', { provider: 'jinka' });
-
-    expect(store.tokens.size).toBe(0);
-    expect(store.accounts.size).toBe(0);
-    expect(store.feeds.size).toBe(0);
   });
 });
 
@@ -216,10 +164,11 @@ describe('token helpers', () => {
     expect(normalizeToken('abc')).toBe('abc');
   });
 
-  it('reads the email claim of a JWT, best effort', () => {
-    const jwt = (claims: object) => `h.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.s`;
+  it('reads email and expiry claims of a JWT, best effort', () => {
     expect(emailFromToken(jwt({ email: 'a@x.fr' }))).toBe('a@x.fr');
     expect(emailFromToken(jwt({ sub: '42' }))).toBeNull();
     expect(emailFromToken('opaque-token')).toBeNull();
+    expect(expiryFromToken(jwt({ exp: 1_800_000_000 }))).toBe('2027-01-15T08:00:00.000Z');
+    expect(expiryFromToken('opaque-token')).toBeNull();
   });
 });

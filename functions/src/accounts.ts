@@ -1,9 +1,13 @@
 import { ProviderAuthError } from './providers/ListingProvider';
 import { SyncDeps, syncFeeds } from './sync';
-import { FeedLink, ProviderAlert, ProviderAuthMethod, ProviderId } from './types';
+import { FeedLink, GLOBAL_OWNER, ProviderAccount, ProviderAlert, ProviderId } from './types';
 
 // Business logic behind the callables. Kept free of firebase-functions so it
 // can be unit-tested; `index.ts` maps `AppError` to `HttpsError`.
+//
+// The app runs on a single app-wide provider account (GLOBAL_OWNER): the admin
+// pastes their Jinka session token once, every member can then link the
+// account's alerts to their search lists. Nobody else configures anything.
 
 export type AppErrorCode =
   | 'invalid-argument'
@@ -34,6 +38,7 @@ function str(value: unknown, field: string, maxLength: number): string {
 }
 
 function providerId(value: unknown): ProviderId {
+  if (value === undefined) return 'jinka';
   if (!PROVIDERS.includes(value as ProviderId)) throw new AppError('invalid-argument', 'Fournisseur inconnu');
   return value as ProviderId;
 }
@@ -43,104 +48,100 @@ export function normalizeToken(value: string): string {
   return value.trim().replace(/^Bearer(\s+|$)/i, '').trim();
 }
 
-/** Best effort: the email claim of a JWT, for display only (never trusted). */
-export function emailFromToken(token: string): string | null {
+function jwtClaims(token: string): Record<string, unknown> | null {
   const payload = token.split('.')[1];
   if (!payload) return null;
   try {
-    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>;
-    const email = claims.email ?? claims.username;
-    return typeof email === 'string' && email.includes('@') ? email : null;
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>;
   } catch {
     return null;
   }
 }
 
+/** Best effort: the email claim of a JWT, for display only (never trusted). */
+export function emailFromToken(token: string): string | null {
+  const claims = jwtClaims(token);
+  const email = claims?.email ?? claims?.username;
+  return typeof email === 'string' && email.includes('@') ? email : null;
+}
+
+/** Best effort: the JWT expiry, so the admin is warned before it lapses. */
+export function expiryFromToken(token: string): string | null {
+  const exp = jwtClaims(token)?.exp;
+  return typeof exp === 'number' ? new Date(exp * 1000).toISOString() : null;
+}
+
+async function requireAdmin(deps: SyncDeps, uid: string, provider: ProviderId): Promise<ProviderAccount> {
+  const account = await deps.store.getAccount(GLOBAL_OWNER, provider);
+  if (!account?.admin_uids?.includes(uid)) {
+    throw new AppError('permission-denied', "Réservé à l'administrateur de l'app");
+  }
+  return account;
+}
+
+const EXPIRED_MESSAGE = "La session Jinka de l'app a expiré : l'administrateur doit remplacer le token";
+
 /**
- * Connects the caller's provider account, either with email + password, or
- * with a bearer token copied from a signed-in browser session (Google/Apple
- * accounts have no password). Stores the token, lists alerts.
+ * Admin only: replaces the app-wide token (a Jinka session token copied from a
+ * signed-in jinka.fr — Google/Apple accounts have no password). Validated by
+ * listing the alerts; feeds are refreshed right away.
  */
-export async function connectProvider(deps: SyncDeps, uid: string, input: unknown): Promise<{ alerts: ProviderAlert[] }> {
+export async function setGlobalToken(
+  deps: SyncDeps, uid: string, input: unknown,
+): Promise<{ alerts: ProviderAlert[]; expiresAt: string | null }> {
   const data = record(input);
   const provider = providerId(data.provider);
-  const client = deps.providers[provider];
+  const account = await requireAdmin(deps, uid, provider);
+  const token = normalizeToken(str(data.token, 'token', 8192));
+  if (!token) throw new AppError('invalid-argument', 'Champ invalide : token');
 
-  let token: string;
-  let email: string;
-  let authMethod: ProviderAuthMethod;
   let alerts: ProviderAlert[];
   try {
-    if (data.token !== undefined) {
-      token = normalizeToken(str(data.token, 'token', 8192));
-      if (!token) throw new AppError('invalid-argument', 'Champ invalide : token');
-      authMethod = 'token';
-      alerts = await client.listAlerts(token); // validates the token
-      email = emailFromToken(token) ?? '';
-    } else {
-      email = str(data.email, 'email', 254).trim();
-      token = await client.authenticate(email, str(data.password, 'password', 256));
-      authMethod = 'password';
-      alerts = await client.listAlerts(token);
-    }
+    alerts = await deps.providers[provider].listAlerts(token);
   } catch (e) {
-    if (e instanceof AppError) throw e;
-    if (e instanceof ProviderAuthError) {
-      throw new AppError('permission-denied', data.token !== undefined ? 'Token Jinka invalide ou expiré' : e.message);
-    }
+    if (e instanceof ProviderAuthError) throw new AppError('permission-denied', 'Token Jinka invalide ou expiré');
     throw new AppError('unavailable', 'Jinka est injoignable, réessaie plus tard');
   }
 
-  await deps.store.saveToken(uid, provider, token);
+  const expiresAt = expiryFromToken(token);
+  await deps.store.saveToken(GLOBAL_OWNER, provider, token);
   await deps.store.saveAccount({
-    user_id: uid,
-    provider,
-    email,
-    auth_method: authMethod,
+    ...account,
+    email: emailFromToken(token) ?? account.email,
+    auth_method: 'token',
     status: 'ok',
     alerts,
     connected_at: deps.now().toISOString(),
-    last_sync_at: null,
     last_error: null,
+    token_expires_at: expiresAt,
   });
 
-  // Reconnecting revives feeds that went 'expired' — refresh them right away.
-  const feeds = await deps.store.listFeeds({ ownerId: uid });
+  // A renewed token revives feeds that went 'expired' — refresh them now.
+  const feeds = await deps.store.listFeeds({ ownerId: GLOBAL_OWNER });
   const own = feeds.filter((f) => f.provider === provider);
   if (own.length > 0) await syncFeeds(deps, own);
 
-  return { alerts };
+  return { alerts, expiresAt };
 }
 
-/** Forgets the token and unlinks every list fed by this account. */
-export async function disconnectProvider(deps: SyncDeps, uid: string, input: unknown): Promise<void> {
-  const provider = providerId(record(input).provider);
-  const feeds = await deps.store.listFeeds({ ownerId: uid });
-  for (const f of feeds.filter((feed) => feed.provider === provider)) {
-    await deps.store.deleteFeed(f.group_id, f.list_id);
-  }
-  await deps.store.deleteToken(uid, provider);
-  await deps.store.deleteAccount(uid, provider);
-}
-
-async function liveAlerts(deps: SyncDeps, uid: string, provider: ProviderId): Promise<ProviderAlert[]> {
-  const token = await deps.store.getToken(uid, provider);
-  if (!token) throw new AppError('failed-precondition', 'Connecte ton compte Jinka dans ton profil');
+async function liveAlerts(deps: SyncDeps, provider: ProviderId): Promise<ProviderAlert[]> {
+  const token = await deps.store.getToken(GLOBAL_OWNER, provider);
+  if (!token) throw new AppError('failed-precondition', EXPIRED_MESSAGE);
   try {
     const alerts = await deps.providers[provider].listAlerts(token);
-    await deps.store.updateAccount(uid, provider, { alerts, status: 'ok', last_error: null });
+    await deps.store.updateAccount(GLOBAL_OWNER, provider, { alerts, status: 'ok', last_error: null });
     return alerts;
   } catch (e) {
     if (e instanceof ProviderAuthError) {
-      await deps.store.deleteToken(uid, provider);
-      await deps.store.updateAccount(uid, provider, { status: 'expired', last_error: e.message });
-      throw new AppError('failed-precondition', 'Session Jinka expirée, reconnecte-toi dans ton profil');
+      await deps.store.deleteToken(GLOBAL_OWNER, provider);
+      await deps.store.updateAccount(GLOBAL_OWNER, provider, { status: 'expired', last_error: e.message });
+      throw new AppError('failed-precondition', EXPIRED_MESSAGE);
     }
     throw new AppError('unavailable', 'Jinka est injoignable, réessaie plus tard');
   }
 }
 
-/** Minimum gap between two manual refetches of the same account. */
+/** Minimum gap between two manual refetches. */
 export const REFETCH_COOLDOWN_MS = 2 * 60 * 1000;
 
 export type RefetchResult = {
@@ -151,35 +152,30 @@ export type RefetchResult = {
 };
 
 /**
- * Manual refetch ("Actualiser les annonces"): re-reads the alert list and every
- * page of the caller's linked alerts right away — same full pass as the
- * nightly sweep (photos/prices updated, expirations detected). Rate-limited.
+ * Admin only — "Actualiser les annonces": re-reads the alert list and every
+ * page of the linked alerts right away (same full pass as the nightly sweep:
+ * photos/prices updated, expirations detected). Rate-limited.
  */
 export async function refetchProvider(deps: SyncDeps, uid: string, input: unknown): Promise<RefetchResult> {
   const provider = providerId(record(input).provider);
-  const account = await deps.store.getAccount(uid, provider);
-  if (!account) throw new AppError('failed-precondition', 'Connecte ton compte Jinka dans ton profil');
+  const account = await requireAdmin(deps, uid, provider);
 
   const now = deps.now();
   const wait = (account.last_refetch_at ? Date.parse(account.last_refetch_at) : 0) + REFETCH_COOLDOWN_MS - now.getTime();
   if (wait > 0) {
     throw new AppError('failed-precondition', `Patiente encore ${Math.ceil(wait / 1000)} s avant d'actualiser`);
   }
-  await deps.store.updateAccount(uid, provider, { last_refetch_at: now.toISOString() });
+  await deps.store.updateAccount(GLOBAL_OWNER, provider, { last_refetch_at: now.toISOString() });
 
-  const feeds = (await deps.store.listFeeds({ ownerId: uid })).filter((f) => f.provider === provider);
+  const feeds = (await deps.store.listFeeds({ ownerId: GLOBAL_OWNER })).filter((f) => f.provider === provider);
   if (feeds.length === 0) {
-    return { alerts: await liveAlerts(deps, uid, provider), feeds: 0, newItems: 0, expiredItems: 0 };
+    return { alerts: await liveAlerts(deps, provider), feeds: 0, newItems: 0, expiredItems: 0 };
   }
 
   const report = await syncFeeds(deps, feeds, 'sweep'); // also refreshes the alert list
-  const after = await deps.store.getAccount(uid, provider);
-  if (after?.status === 'expired') {
-    throw new AppError('failed-precondition', 'Session Jinka expirée, reconnecte-toi dans ton profil');
-  }
-  if (after?.status === 'error') {
-    throw new AppError('unavailable', 'Jinka est injoignable, réessaie plus tard');
-  }
+  const after = await deps.store.getAccount(GLOBAL_OWNER, provider);
+  if (after?.status === 'expired') throw new AppError('failed-precondition', EXPIRED_MESSAGE);
+  if (after?.status === 'error') throw new AppError('unavailable', 'Jinka est injoignable, réessaie plus tard');
   return {
     alerts: after?.alerts ?? [],
     feeds: report.feeds,
@@ -189,16 +185,15 @@ export async function refetchProvider(deps: SyncDeps, uid: string, input: unknow
 }
 
 /**
- * Links a group's search list to one of the caller's alerts (or unlinks it
- * with `alertId: null`), then fills the feed immediately. Any group member
- * can link; the caller's account becomes the list's source.
+ * Links a group's search list to one of the app's alerts (or unlinks it with
+ * `alertId: null`), then fills the feed immediately. Any group member can do it.
  */
 export async function linkSearchList(deps: SyncDeps, uid: string, input: unknown): Promise<{ newItems: number }> {
   const data = record(input);
   const groupId = str(data.groupId, 'groupId', 128);
   const listId = str(data.listId, 'listId', 128);
   const alertId = data.alertId === null ? null : str(data.alertId, 'alertId', 128);
-  const provider = data.provider === undefined ? 'jinka' : providerId(data.provider);
+  const provider = providerId(data.provider);
 
   const group = await deps.store.getGroup(groupId);
   if (!group) throw new AppError('not-found', 'Groupe introuvable');
@@ -211,11 +206,11 @@ export async function linkSearchList(deps: SyncDeps, uid: string, input: unknown
     return { newItems: 0 };
   }
 
-  const alert = (await liveAlerts(deps, uid, provider)).find((a) => a.id === alertId);
+  const alert = (await liveAlerts(deps, provider)).find((a) => a.id === alertId);
   if (!alert) throw new AppError('not-found', 'Alerte Jinka introuvable');
 
   // Switching source: start from an empty feed rather than mixing two alerts.
-  if (existing && (existing.alert_id !== alertId || existing.owner_id !== uid)) {
+  if (existing && (existing.alert_id !== alertId || existing.owner_id !== GLOBAL_OWNER)) {
     await deps.store.deleteFeed(groupId, listId);
   }
 
@@ -223,7 +218,7 @@ export async function linkSearchList(deps: SyncDeps, uid: string, input: unknown
     group_id: groupId,
     list_id: listId,
     provider,
-    owner_id: uid,
+    owner_id: GLOBAL_OWNER,
     alert_id: alert.id,
     alert_name: alert.name,
     linked_at: deps.now().toISOString(),

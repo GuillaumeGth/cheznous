@@ -5,7 +5,7 @@ import { setGlobalOptions } from 'firebase-functions/v2/options';
 import { CallableRequest, HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import {
-  AppError, connectProvider, disconnectProvider, linkSearchList, refetchProvider,
+  AppError, linkSearchList, refetchProvider, setGlobalToken,
 } from './accounts';
 import { createJinkaProvider } from './providers/jinka/jinkaProvider';
 import { firestoreFeedStore } from './store/firestoreFeedStore';
@@ -37,8 +37,8 @@ function callable<R>(fn: (deps: SyncDeps, uid: string, data: unknown) => Promise
   });
 }
 
-export const connectListingProvider = callable(connectProvider);
-export const disconnectListingProvider = callable(disconnectProvider);
+// Admin only: replace the app-wide Jinka token (see accounts.ts).
+export const setGlobalListingProviderToken = callable(setGlobalToken);
 export const refetchListingProvider = callable(refetchProvider);
 export const linkSearchListToAlert = callable(linkSearchList);
 

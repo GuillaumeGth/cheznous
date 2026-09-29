@@ -161,6 +161,18 @@ describe('syncFeeds', () => {
     expect(store.feeds.size).toBe(0);
   });
 
+  it('keeps feeds owned by the app-wide account (not a group member)', async () => {
+    const { store, provider, deps } = setup();
+    store.tokens.set('global/jinka', 'tok');
+    await store.saveFeed(feedLink({ owner_id: 'global' }));
+    provider.pages.set('a1', [[makeListing('jinka_1')]]);
+
+    const report = await syncFeeds(deps);
+
+    expect(report.removedFeeds).toBe(0);
+    expect(store.items.get('g1/l1')!.size).toBe(1);
+  });
+
   it('flags only the feed whose alert was deleted on the provider side', async () => {
     const { store, provider, deps } = setup();
     await store.saveFeed(feedLink({ alert_id: 'gone' }));

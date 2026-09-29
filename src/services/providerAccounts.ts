@@ -4,39 +4,25 @@ import { ProviderAlert, ProviderId } from '@/types';
 import { alog } from '@/lib/adminLogger';
 
 // Thin wrappers over the Cloud Functions callables (functions/src/index.ts).
-// The provider password only transits through `connectProvider`; the server
-// keeps the token and never stores the password.
+// The app runs on one app-wide Jinka account; its token stays server-side.
 
 const PROVIDER: ProviderId = 'jinka';
 
 type AlertsResult = { alerts: ProviderAlert[] };
 
-export async function connectProvider(email: string, password: string): Promise<ProviderAlert[]> {
-  alog('Callable:connectListingProvider');
-  const call = httpsCallable<{ provider: ProviderId; email: string; password: string }, AlertsResult>(
-    functions, 'connectListingProvider',
-  );
-  const { data } = await call({ provider: PROVIDER, email, password });
-  return data.alerts;
-}
-
 /**
- * For Jinka accounts created with Google/Apple (no password): a bearer token
- * copied from a signed-in jinka.fr session (`Authorization` header or the
- * `LA_API_TOKEN` cookie). The server validates it before storing it.
+ * Admin only: replaces the app-wide Jinka token — a session token copied from
+ * a signed-in jinka.fr (`Authorization` header or `LA_API_TOKEN` cookie).
+ * The server validates it before storing it; nobody else configures Jinka.
  */
-export async function connectProviderWithToken(token: string): Promise<ProviderAlert[]> {
-  alog('Callable:connectListingProvider (token)');
-  const call = httpsCallable<{ provider: ProviderId; token: string }, AlertsResult>(
-    functions, 'connectListingProvider',
-  );
+export async function setGlobalProviderToken(token: string): Promise<AlertsResult & { expiresAt: string | null }> {
+  alog('Callable:setGlobalListingProviderToken');
+  const call = httpsCallable<
+    { provider: ProviderId; token: string },
+    AlertsResult & { expiresAt: string | null }
+  >(functions, 'setGlobalListingProviderToken');
   const { data } = await call({ provider: PROVIDER, token });
-  return data.alerts;
-}
-
-export async function disconnectProvider(): Promise<void> {
-  alog('Callable:disconnectListingProvider');
-  await httpsCallable<{ provider: ProviderId }, void>(functions, 'disconnectListingProvider')({ provider: PROVIDER });
+  return data;
 }
 
 export type RefetchResult = AlertsResult & { feeds: number; newItems: number; expiredItems: number };

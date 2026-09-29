@@ -19,6 +19,7 @@ import PendingInvitationBanner from '@/components/PendingInvitationBanner';
 import Toast, { ToastType } from '@/components/Toast';
 import ConfirmSheet from '@/components/ConfirmSheet';
 import ProviderAccountSection from '@/components/ProviderAccountSection';
+import { useProviderAccount } from '@/hooks/useProviderAccount';
 import { NotificationPrefs, DEFAULT_NOTIFICATION_PREFS } from '@/types';
 
 export default function ProfileScreen() {
@@ -37,6 +38,8 @@ export default function ProfileScreen() {
   const colocCount = Math.max(0, (group?.member_ids?.length ?? 1) - 1);
 
   const showToast = (message: string, type: ToastType = 'info') => setToast({ message, type });
+  const providerAccount = useProviderAccount();
+  const isProviderAdmin = !!firebaseUser && !!providerAccount?.admin_uids?.includes(firebaseUser.uid);
   const handleProviderMessage = useCallback(
     (message: string, type: ToastType) => setToast({ message, type }),
     [],
@@ -180,11 +183,13 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Source des annonces */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Annonces</Text>
-          <ProviderAccountSection onMessage={handleProviderMessage} />
-        </View>
+        {/* Compte Jinka de l'app — rendu uniquement pour l'administrateur */}
+        {isProviderAdmin && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Annonces</Text>
+            <ProviderAccountSection onMessage={handleProviderMessage} />
+          </View>
+        )}
 
         {/* Notifications */}
         <View style={styles.section}>

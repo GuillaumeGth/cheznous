@@ -1,27 +1,25 @@
 import React, { memo, useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '@/stores/authStore';
 import { useFeedLink } from '@/hooks/useFeedLink';
 import { useProviderAccount } from '@/hooks/useProviderAccount';
 import { refreshListingsIfActive } from '@/hooks/useListings';
 import { callableErrorMessage, linkSearchList } from '@/services/providerAccounts';
-import { GroupMember, ProviderAlert } from '@/types';
+import { ProviderAlert } from '@/types';
 import { styles } from '@/styles/feedSourcePicker.styles';
 
 type Props = {
   groupId: string | null;
   listId: string;
-  members: GroupMember[];
 };
 
 // Busy target: an alert id being linked, 'unlink', or nothing.
 type Busy = string | null;
 
-// FilterSheet section: which Jinka alert feeds this search list. Any member can
-// link one of *their* alerts; the whole group then swipes its listings.
-export default function FeedSourcePicker({ groupId, listId, members }: Props) {
-  const uid = useAuthStore((s) => s.firebaseUser?.uid);
+// FilterSheet section: which Jinka alert feeds this search list. The alerts are
+// the app-wide Jinka account's; any member can link one, the whole group then
+// swipes its listings.
+export default function FeedSourcePicker({ groupId, listId }: Props) {
   const link = useFeedLink(groupId, listId);
   const account = useProviderAccount();
   const [busy, setBusy] = useState<Busy>(null);
@@ -46,10 +44,7 @@ export default function FeedSourcePicker({ groupId, listId, members }: Props) {
     return <ActivityIndicator color="#4A6CF7" />;
   }
 
-  const ownerName = link && link.owner_id !== uid
-    ? members.find((m) => m.uid === link.owner_id)?.displayName ?? 'un coloc'
-    : null;
-  const myAlerts = account && account.status !== 'expired' ? account.alerts : [];
+  const alerts = account && account.status !== 'expired' ? account.alerts : [];
 
   return (
     <View style={styles.container}>
@@ -59,13 +54,11 @@ export default function FeedSourcePicker({ groupId, listId, members }: Props) {
           <View style={styles.linkedTexts}>
             <Text style={styles.linkedTitle} numberOfLines={1}>{link.alert_name}</Text>
             {link.status === 'ok' ? (
-              <Text style={styles.linkedSub}>
-                {ownerName ? `Alerte Jinka de ${ownerName}` : 'Ton alerte Jinka'}
-              </Text>
+              <Text style={styles.linkedSub}>Alerte Jinka</Text>
             ) : (
               <Text style={styles.linkedSubWarning}>
                 {link.status === 'expired'
-                  ? `Session Jinka expirée${ownerName ? ` (${ownerName})` : ''} — plus de mise à jour`
+                  ? "Token Jinka de l'app expiré — plus de mise à jour"
                   : 'Alerte introuvable ou synchro en échec'}
               </Text>
             )}
@@ -78,17 +71,17 @@ export default function FeedSourcePicker({ groupId, listId, members }: Props) {
         </View>
       ) : (
         <Text style={styles.hint}>
-          Aucune alerte liée : choisis une de tes alertes Jinka pour alimenter cette recherche.
+          Aucune alerte liée : choisis une alerte Jinka pour alimenter cette recherche.
         </Text>
       )}
 
-      {myAlerts.length > 0 ? (
+      {alerts.length > 0 ? (
         <View style={styles.chips}>
-          {myAlerts.map((alert) => (
+          {alerts.map((alert) => (
             <AlertChip
               key={alert.id}
               alert={alert}
-              selected={link?.alert_id === alert.id && link.owner_id === uid}
+              selected={link?.alert_id === alert.id}
               busy={busy === alert.id}
               disabled={busy !== null}
               onSelect={setAlert}
@@ -97,9 +90,9 @@ export default function FeedSourcePicker({ groupId, listId, members }: Props) {
         </View>
       ) : (
         <Text style={styles.hint}>
-          {account
-            ? 'Aucune alerte disponible : crée-en une sur jinka.fr puis actualise depuis ton profil.'
-            : 'Connecte ton compte Jinka depuis ton profil pour lier une alerte.'}
+          {account?.status === 'expired'
+            ? "Le token Jinka de l'app a expiré : l'administrateur doit le remplacer."
+            : 'Aucune alerte Jinka disponible pour le moment.'}
         </Text>
       )}
     </View>
