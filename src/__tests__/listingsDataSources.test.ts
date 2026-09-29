@@ -75,26 +75,25 @@ describe('feedDataSource', () => {
 
 describe('mockDataSource', () => {
   it('generates pages that honour the filters and never run out', async () => {
-    const filters = { ...DEFAULT_FILTERS, arrondissements: [3], price_max: 1500 };
+    const filters = { ...DEFAULT_FILTERS, price_max: 1500 };
     const first = await mockDataSource.fetchPage({ ...QUERY, filters }, null);
     const second = await mockDataSource.fetchPage({ ...QUERY, filters }, first.nextCursor);
 
     expect(first.listings).toHaveLength(MOCK_PAGE_SIZE);
-    expect(first.listings.every((l) => l.arrondissement === 3 && l.price <= 1500)).toBe(true);
+    expect(first.listings.every((l) => l.price <= 1500)).toBe(true);
     expect(second.nextCursor).not.toBeNull();
     expect(mockDataSource.kind).toBe('local');
   });
 });
 
 describe('matchesFilters', () => {
-  const base = { arrondissement: 11, price: 1200, surface: 35, rooms: 2 };
+  const base = { price: 1200, surface: 35, rooms: 2 };
 
   it('treats 0 as "no restriction"', () => {
     expect(matchesFilters(base, DEFAULT_FILTERS)).toBe(true);
   });
 
   it('applies every bound', () => {
-    expect(matchesFilters(base, { ...DEFAULT_FILTERS, arrondissements: [1] })).toBe(false);
     expect(matchesFilters(base, { ...DEFAULT_FILTERS, price_min: 1300 })).toBe(false);
     expect(matchesFilters(base, { ...DEFAULT_FILTERS, price_max: 1100 })).toBe(false);
     expect(matchesFilters(base, { ...DEFAULT_FILTERS, surface_min: 40 })).toBe(false);

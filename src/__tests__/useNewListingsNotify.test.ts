@@ -135,33 +135,6 @@ describe('useNewListingsNotify — notification gate', () => {
   });
 });
 
-describe('useNewListingsNotify — filter: arrondissements', () => {
-  it('keeps only listings in the selected arrondissements', async () => {
-    mockFilterGetState.mockReturnValue({
-      activeListId: 'l1',
-      filters: { ...DEFAULT_FILTERS, arrondissements: [10, 11] },
-    });
-    mockGetDocs.mockResolvedValue({
-      docs: [
-        makeDoc({ arrondissement: 10, price: 1500, surface: 40, rooms: 2 }),
-        makeDoc({ arrondissement: 15, price: 1500, surface: 40, rooms: 2 }),
-      ],
-    } as any);
-    renderHook();
-    await triggerActive();
-    expect(mockSchedule).toHaveBeenCalledWith(1);
-  });
-
-  it('accepts any arrondissement when the list is empty', async () => {
-    mockGetDocs.mockResolvedValue({
-      docs: [makeDoc({ arrondissement: 20, price: 1500, surface: 40, rooms: 2 })],
-    } as any);
-    renderHook();
-    await triggerActive();
-    expect(mockSchedule).toHaveBeenCalledWith(1);
-  });
-});
-
 describe('useNewListingsNotify — filter: price range', () => {
   it('price_min=0 accepts listings of any price (no lower bound)', async () => {
     mockFilterGetState.mockReturnValue({

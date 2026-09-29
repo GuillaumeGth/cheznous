@@ -1,22 +1,23 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator,
+  View, Text, ScrollView, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useMatches } from '@/hooks/useMatches';
 import { useLikes } from '@/hooks/useLikes';
 import { useGroup } from '@/hooks/useGroup';
 import { useAuthStore } from '@/stores/authStore';
 import MatchCard from '@/components/MatchCard';
 import LikeCard from '@/components/LikeCard';
-import { Match } from '@/types';
+import { styles } from '@/styles/matchesScreen.styles';
+
+const SAFE_EDGES = ['top'] as const;
+const REFRESH_COLORS = ['#4A6CF7'];
 
 export default function MatchesScreen() {
-  const { matches, isLoading: matchesLoading } = useMatches();
-  const { likes, isLoading: likesLoading } = useLikes();
+  const { matches, isLoading: matchesLoading, refresh: refreshMatches } = useMatches();
+  const { likes, isLoading: likesLoading, refresh: refreshLikes } = useLikes();
   const { memberProfiles } = useGroup();
   const myUid = useAuthStore((s) => s.firebaseUser?.uid);
   const myProfile = useAuthStore((s) => s.profile);
@@ -34,9 +35,17 @@ export default function MatchesScreen() {
     [likes, matchedIds],
   );
 
-  const handleStatusChange = async (id: string, status: Match['status']) => {
-    await updateDoc(doc(db, 'matches', id), { status });
-  };
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refreshMatches(), refreshLikes()]);
+    } catch {
+      // Offline or transient error: the live listeners keep the current data.
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshMatches, refreshLikes]);
 
   if (matchesLoading || likesLoading) {
     return (
@@ -49,7 +58,7 @@ export default function MatchesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={SAFE_EDGES}>
       <View style={styles.header}>
         <Text style={styles.title}>Mes favoris</Text>
         <Text style={styles.count}>
@@ -57,7 +66,18 @@ export default function MatchesScreen() {
         </Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#4A6CF7"
+            colors={REFRESH_COLORS}
+          />
+        )}
+      >
 
         {/* Mutual matches */}
         <View style={styles.section}>
@@ -75,7 +95,6 @@ export default function MatchesScreen() {
               <MatchCard
                 key={match.id}
                 match={match}
-                onStatusChange={handleStatusChange}
                 members={allMembers}
                 myUid={myUid}
               />
@@ -105,44 +124,3 @@ export default function MatchesScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8F9FA' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-  },
-  title: { fontSize: 24, fontWeight: '800', color: '#1A1A2E' },
-  count: { fontSize: 13, color: '#888' },
-  scroll: { paddingBottom: 32 },
-  section: { marginBottom: 8 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1A1A2E', flex: 1 },
-  pill: {
-    backgroundColor: '#4A6CF722',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  pillPink: { backgroundColor: '#FF40811A' },
-  pillText: { fontSize: 12, fontWeight: '600', color: '#555' },
-  emptySection: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-  },
-  emptyText: { fontSize: 13, color: '#aaa', textAlign: 'center' },
-});

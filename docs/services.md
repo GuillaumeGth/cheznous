@@ -3,7 +3,7 @@
 Les annonces viennent des **alertes Jinka** d'un membre du groupe. Un serveur
 (Cloud Functions for Firebase, dossier `functions/`) les synchronise dans
 Firestore ; l'app ne fait que lire ce flux. Le choix à plusieurs (swipes,
-`min_likes`, matches) reste entièrement côté Chez Nous — rien n'est renvoyé à Jinka.
+matches) reste entièrement côté Chez Nous — rien n'est renvoyé à Jinka.
 
 > Jinka n'a pas d'API publique : on utilise l'API interne de son site
 > (`api.jinka.fr/apiv2`), portée depuis [kajin](https://github.com/louistransfer/kajin).
@@ -115,8 +115,8 @@ interface ListingsDataSource {
 
 `getListingsDataSource()` est le seul point de bascule.
 
-Les filtres de l'app **affinent** l'alerte Jinka (prix, surface, pièces,
-arrondissements). `transaction_type` n'a pas d'effet : c'est l'alerte qui le définit.
+Les filtres de l'app **affinent** l'alerte Jinka (prix, surface, pièces) ;
+tout le reste (type de transaction, localisation…) est défini par l'alerte.
 
 ### listingsStore
 

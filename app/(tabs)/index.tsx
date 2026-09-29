@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, ActivityIndicator, Image,
+  View, Text, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,9 +45,8 @@ export default function SwipeScreen() {
   const groupId = useAuthStore((s) => s.groupId);
   const displayName = useAuthStore((s) => s.profile?.display_name);
   const myPhoto = useAuthStore((s) => s.profile?.photo_url);
-  const searchLists = useFilterStore((s) => s.searchLists);
+  const hasSearch = useFilterStore((s) => s.searchLists.length > 0);
   const activeListId = useFilterStore((s) => s.activeListId);
-  const hasSearch = searchLists.length > 0;
 
   const { stack, isLoading, error, loadMore, refresh, pop, pushBack, queryKey } = useListings();
   const feedLink = useFeedLink(NEEDS_FEED_LINK ? groupId : null, NEEDS_FEED_LINK ? activeListId : null);
@@ -91,12 +90,6 @@ export default function SwipeScreen() {
   useEffect(() => {
     if (canLoad && stack.length <= 3 && !isLoading) loadMore();
   }, [canLoad, stack.length, isLoading, loadMore]);
-
-  const activeList = useMemo(
-    () => searchLists.find((l) => l.id === activeListId),
-    [searchLists, activeListId],
-  );
-  const activeListCover = activeList?.cover_photo_url ?? null;
 
   const members = useMemo<GroupMember[]>(() => {
     const result: GroupMember[] = [];
@@ -143,14 +136,9 @@ export default function SwipeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitles}>
-          {activeListCover && (
-            <View style={styles.groupAvatar}>
-              <Image source={{ uri: activeListCover }} style={styles.groupAvatarImage} />
-            </View>
-          )}
           <View style={styles.headerText}>
             <View style={styles.titleRow}>
-              <Text style={styles.appName} numberOfLines={1}>{group?.name ?? 'Chez Nous'}</Text>
+              <Text style={styles.appName} numberOfLines={1}>Explorer</Text>
               {hasColocs && <MemberAvatars members={members} />}
             </View>
             {group && !hasColocs && (
@@ -258,7 +246,6 @@ export default function SwipeScreen() {
       <FilterSheet
         visible={modal?.type === 'filter'}
         onClose={handleModalClose}
-        members={members}
       />
       <ListingDetailSheet
         listing={modal?.type === 'detail' ? modal.listing : null}

@@ -39,12 +39,8 @@ export const mockDataSource: ListingsDataSource = {
 
 function generateMockListings(filters: SearchFilters, page: number): Listing[] {
   alog('MOCK:generateListings', { page });
-  const arrondissements = filters.arrondissements.length > 0
-    ? filters.arrondissements
-    : Array.from({ length: 20 }, (_, i) => i + 1);
-
   return Array.from({ length: MOCK_PAGE_SIZE }, (_, i) => {
-    const arr = arrondissements[Math.floor(Math.random() * arrondissements.length)];
+    const arr = Math.floor(Math.random() * 20) + 1;
     const rooms = Math.max(filters.rooms_min || 1, Math.floor(Math.random() * 3) + 1);
     const rawSurface = 20 + rooms * 15 + Math.floor(Math.random() * 20);
     const surface = Math.max(

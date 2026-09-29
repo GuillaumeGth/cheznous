@@ -17,13 +17,6 @@ export const styles = StyleSheet.create({
     borderBottomColor: '#f0f0f0',
     gap: 12,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   headerInfo: { flex: 1 },
   headerTitle: { fontSize: 17, fontWeight: '700', color: '#1A1A2E' },
   headerSubtitle: { fontSize: 12, color: '#888', marginTop: 1 },

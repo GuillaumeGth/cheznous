@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
   ScrollView, Platform, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GroupMember, SearchFilters, TransactionType, DEFAULT_FILTERS } from '@/types';
+import { SearchFilters, DEFAULT_FILTERS } from '@/types';
 import { useFilterStore } from '@/stores/filterStore';
 import { useAuthStore } from '@/stores/authStore';
 import FeedSourcePicker from '@/components/FeedSourcePicker';
@@ -12,17 +12,17 @@ import FeedSourcePicker from '@/components/FeedSourcePicker';
 type Props = {
   visible: boolean;
   onClose: () => void;
-  /** Other users of the app (the single search involves everyone). */
-  members: GroupMember[];
 };
 
-const ARRONDISSEMENTS = Array.from({ length: 20 }, (_, i) => i + 1);
-const TRANSACTION_OPTIONS: { label: string; value: TransactionType }[] = [
-  { label: 'Location', value: 'rent' },
-  { label: 'Achat', value: 'buy' },
-];
-
-const normalizeFilters = (f?: SearchFilters): SearchFilters => ({ ...DEFAULT_FILTERS, ...(f ?? {}) });
+// Keeps only the current fields: filters saved before the refinements were
+// narrowed down may still carry legacy keys (arrondissements, min_likes…).
+const normalizeFilters = (f?: Partial<SearchFilters>): SearchFilters => ({
+  price_min: f?.price_min ?? DEFAULT_FILTERS.price_min,
+  price_max: f?.price_max ?? DEFAULT_FILTERS.price_max,
+  surface_min: f?.surface_min ?? DEFAULT_FILTERS.surface_min,
+  surface_max: f?.surface_max ?? DEFAULT_FILTERS.surface_max,
+  rooms_min: f?.rooms_min ?? DEFAULT_FILTERS.rooms_min,
+});
 const ROOMS_OPTIONS = [
   { label: 'Tous', value: 0 },
   { label: 'Studio', value: 1 },
@@ -31,7 +31,7 @@ const ROOMS_OPTIONS = [
   { label: '4+ p.', value: 4 },
 ];
 
-export default function FilterSheet({ visible, onClose, members }: Props) {
+export default function FilterSheet({ visible, onClose }: Props) {
   const searchLists = useFilterStore((s) => s.searchLists);
   const activeListId = useFilterStore((s) => s.activeListId);
   const groupId = useAuthStore((s) => s.groupId);
@@ -39,36 +39,9 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
 
   const [local, setLocal] = useState<SearchFilters>(DEFAULT_FILTERS);
 
-  // Everyone using the app takes part in the single search (+1 = me).
-  const totalMembers = members.length + 1;
-  const likesOptions = useMemo(() => [
-    { label: 'Tous', value: 0 },
-    ...Array.from({ length: totalMembers - 1 }, (_, i) => ({
-      label: String(i + 1),
-      value: i + 1,
-    })),
-  ], [totalMembers]);
-
   useEffect(() => {
     if (visible) setLocal(normalizeFilters(searchLists.find((l) => l.id === activeListId)?.filters));
   }, [visible]);
-
-  const setTransaction = (value: TransactionType) => {
-    setLocal((f) =>
-      f.transaction_type === value
-        ? f
-        : { ...f, transaction_type: value, price_min: 0, price_max: 0 },
-    );
-  };
-
-  const toggleArr = (arr: number) => {
-    setLocal((f) => ({
-      ...f,
-      arrondissements: f.arrondissements.includes(arr)
-        ? f.arrondissements.filter((a) => a !== arr)
-        : [...f.arrondissements, arr],
-    }));
-  };
 
   const apply = async () => {
     if (groupId && activeListId) await useFilterStore.getState().syncFilters(groupId, local, activeListId);
@@ -76,8 +49,6 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
   };
 
   const reset = () => setLocal(DEFAULT_FILTERS);
-
-  const isBuy = local.transaction_type === 'buy';
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -99,47 +70,8 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
             <FeedSourcePicker groupId={groupId} listId={activeListId} />
           </Section>
 
-          {/* Type de transaction */}
-          <Section title="Type de transaction">
-            <View style={styles.steps}>
-              {TRANSACTION_OPTIONS.map(({ label, value }) => (
-                <TouchableOpacity
-                  key={value}
-                  style={[styles.step, local.transaction_type === value && styles.stepActive]}
-                  onPress={() => setTransaction(value)}
-                >
-                  <Text style={[styles.stepText, local.transaction_type === value && styles.stepTextActive]}>
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </Section>
-
-          {/* Arrondissements */}
-          <Section title="Arrondissements">
-            <Text style={styles.hint}>
-              {local.arrondissements.length === 0
-                ? 'Tous les arrondissements'
-                : `${local.arrondissements.length} sélectionné${local.arrondissements.length > 1 ? 's' : ''}`}
-            </Text>
-            <View style={styles.grid}>
-              {ARRONDISSEMENTS.map((arr) => (
-                <TouchableOpacity
-                  key={arr}
-                  style={[styles.chip, local.arrondissements.includes(arr) && styles.chipActive]}
-                  onPress={() => toggleArr(arr)}
-                >
-                  <Text style={[styles.chipText, local.arrondissements.includes(arr) && styles.chipTextActive]}>
-                    {arr}e
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </Section>
-
           {/* Prix */}
-          <Section title={isBuy ? 'Prix (€)' : 'Loyer (€/mois)'}>
+          <Section title="Loyer (€/mois)">
             <View style={styles.rangeRow}>
               <View style={styles.rangeInputWrap}>
                 <Text style={styles.rangeLabel}>Min</Text>
@@ -213,30 +145,6 @@ export default function FilterSheet({ visible, onClose, members }: Props) {
             </View>
           </Section>
 
-          {/* Accord pour matcher (groupes de 2+ personnes) */}
-          {totalMembers >= 2 && (
-            <Section title="Accord pour matcher">
-              <Text style={styles.hint}>
-                {(local.min_likes ?? 0) === 0
-                  ? 'Unanimité — tous les membres doivent aimer le bien'
-                  : `${local.min_likes} like${local.min_likes > 1 ? 's' : ''} suffisent sur ${totalMembers}`}
-              </Text>
-              <View style={styles.steps}>
-                {likesOptions.map(({ label, value }) => (
-                  <TouchableOpacity
-                    key={value}
-                    style={[styles.step, (local.min_likes ?? 0) === value && styles.stepActive]}
-                    onPress={() => setLocal((f) => ({ ...f, min_likes: value }))}
-                  >
-                    <Text style={[styles.stepText, (local.min_likes ?? 0) === value && styles.stepTextActive]}>
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </Section>
-          )}
-
           <View style={{ height: 40 }} />
         </ScrollView>
 
@@ -282,11 +190,6 @@ const styles = StyleSheet.create({
   },
   cancel: { fontSize: 16, color: '#888' },
   reset: { fontSize: 16, color: '#4A6CF7' },
-  hint: {
-    fontSize: 13,
-    color: '#888',
-    marginBottom: 10,
-  },
   scroll: { flex: 1, padding: 16 },
   section: {
     backgroundColor: '#fff',
@@ -300,25 +203,6 @@ const styles = StyleSheet.create({
     color: '#1A1A2E',
     marginBottom: 12,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#ddd',
-    backgroundColor: '#F8F9FA',
-  },
-  chipActive: {
-    borderColor: '#4A6CF7',
-    backgroundColor: '#EEF1FF',
-  },
-  chipText: { fontSize: 13, color: '#555', fontWeight: '500' },
-  chipTextActive: { color: '#4A6CF7', fontWeight: '600' },
   steps: {
     flexDirection: 'row',
     flexWrap: 'wrap',

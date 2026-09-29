@@ -11,7 +11,11 @@ npm start                # = expo start (dev server, Expo Go or dev build)
 npm run ios              # = expo run:ios (native build + iOS simulator/device)
 npm run android          # = expo run:android
 npm run web              # = expo start --web
+npm run version:bump     # patch of expo.version + android.versionCode + ios.buildNumber in app.json
+npm run release:android  # bump, prebuild, local release APK, Firebase App Distribution (group "testeurs")
 ```
+
+Every published build bumps the version first (`release:android` does it). EAS is not set up: the `projectId` in `app.json` does not exist on the `guillaumed.gth` account.
 
 Tests run with Jest (`jest-expo`):
 
@@ -31,7 +35,7 @@ There is no lint script configured.
 
 ## Architecture
 
-**Chez Nous** is an apartment-hunting app for colocs (roommates) in Paris. Everyone using the app forms **one implicit group** sharing **one search**: each person swipes independently and a match happens when all members (or `min_likes`) right-swipe the same listing.
+**Chez Nous** is an apartment-hunting app for colocs (roommates) in Paris. Everyone using the app forms **one implicit group** sharing **one search**: each person swipes independently and a match happens as soon as two members right-swipe the same listing.
 
 ### Path alias
 
@@ -48,12 +52,10 @@ app/
   (tabs)/
     index.tsx          ← swipe screen (main feature)
     matches.tsx        ← matched listings list
-    chat.tsx           ← conversations list
+    chat.tsx           ← the group chat (single group, no conversations list)
     profile.tsx        ← settings, notification prefs, sign out
   chat/
     [matchId].tsx      ← per-match chat (pushes over the tab bar)
-  group-chat/
-    [groupId].tsx      ← per-group chat
 ```
 
 **Navigation flow:** `app/index.tsx` reads `authStore` (atomic selectors) and redirects via `<Redirect>`:
@@ -95,7 +97,7 @@ Singleton init in `src/lib/firebase.ts` with `experimentalForceLongPolling: true
 | `matches/{id}/messages` | auto | `ChatMessage`; per-match chat subcollection |
 | `crash_reports` | auto | Client error reports (`src/lib/errorReporting.ts`) |
 
-**Match logic** (`src/hooks/useSwipeActions.ts → checkForMatch`): swipes and matches are **scoped by `search_list_id`** — the same listing can be swiped independently in two different search lists. After a right-swipe, the targeted participants are the search list's `member_ids` sub-group (or all group members if unset). With `min_likes: 0` a match needs **unanimity** among targeted participants; otherwise it needs `min_likes` total likes. Solo lists (only the current user) match immediately. Runs entirely client-side. `handleUndo` deletes the swipe (and any match) for that list.
+**Match logic** (`src/hooks/useSwipeActions.ts → checkForMatch`): swipes and matches are **scoped by `search_list_id`** — the same listing can be swiped independently in two different search lists. After a right-swipe, a match is created as soon as **one other group member** has right-swiped the same listing in the same list (two likes). A user alone in the group matches immediately. Runs entirely client-side. `handleUndo` deletes the swipe (and any match) for that list.
 
 ### Listings pipeline
 
@@ -106,20 +108,17 @@ Listings come from **Jinka** (no public API — its internal web API, ported fro
 - **Client** (`src/services/listings/`): `ListingsDataSource` interface (`fetchPage(query, cursor)`, `kind: 'feed' | 'local'`); `feedDataSource` reads `groups/{g}/feeds/{listId}/items` (`active == true`, `added_at` desc) and refines with the list's `SearchFilters` client-side (`matchesFilters`); `mockDataSource` when `EXPO_PUBLIC_LISTINGS_SOURCE=mock`. `getListingsDataSource()` is the single switch point. `listingsStore` paginates by cursor, excludes already-swiped listings, and holds an `error` state.
 - `functions/src/types.ts` mirrors `Listing` and the provider types from `src/types` — keep both in sync.
 
-**`SearchFilters` fields** — convention: `0` means "no restriction" for numeric bounds. They **refine** the linked Jinka alert client-side; `transaction_type` has no effect on the Jinka feed (the alert defines it).
+**`SearchFilters` fields** — convention: `0` means "no restriction" for numeric bounds. They **refine** the linked Jinka alert client-side (the alert itself defines the rest: transaction type, location…); only price, surface and rooms can be overridden in the app.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `transaction_type` | `'rent' \| 'buy'` | `'rent'` | Only used by the mock source |
-| `arrondissements` | `number[]` | `[]` | Empty = all 20 arrondissements. Listings outside Paris have `arrondissement: 0` |
 | `price_min` | `number` | `0` | ignored when 0 |
 | `price_max` | `number` | `0` | ignored when 0 |
 | `surface_min` | `number` | `0` | ignored when 0 |
 | `surface_max` | `number` | `0` | ignored when 0 |
 | `rooms_min` | `number` | `0` | ignored when 0 |
-| `min_likes` | `number` | `0` | Min members who must like a listing to match; `0` = unanimity |
 
-`SearchFilters` live on the single **search list** (`SearchList.filters`) of the home group; the top-level `Group.filters` field is legacy. The data model still supports several lists, but the app shows and edits only the active one.
+`SearchFilters` live on the single **search list** (`SearchList.filters`) of the home group; the top-level `Group.filters` field is legacy. Stored filters may still carry legacy keys (`transaction_type`, `arrondissements`, `min_likes`), ignored by the app. The data model still supports several lists, but the app shows and edits only the active one.
 
 ### Chat
 

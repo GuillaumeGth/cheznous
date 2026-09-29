@@ -26,36 +26,25 @@ export type Listing = {
 
 export type SwipeDirection = 'left' | 'right';
 
-export type TransactionType = 'rent' | 'buy';
-
 /**
- * Numeric range fields (`price_min`, `price_max`, `surface_min`, `surface_max`)
- * use `0` as "no restriction" — i.e. `price_min: 0` means no lower bound,
- * `price_max: 0` means no upper bound. Only positive values are applied as filters.
- *
- * `min_likes`: nombre minimum de membres devant avoir liké un bien pour créer un
- * match. `0` = unanimité (tous les participants de la liste doivent approuver).
+ * Refinements applied client-side on top of the linked Jinka alert (which
+ * already defines the search). Numeric bounds use `0` as "no restriction" —
+ * i.e. `price_min: 0` means no lower bound, `price_max: 0` no upper bound.
  */
 export type SearchFilters = {
-  transaction_type: TransactionType;
-  arrondissements: number[];
   price_min: number;
   price_max: number;
   surface_min: number;
   surface_max: number;
   rooms_min: number;
-  min_likes: number;
 };
 
 export const DEFAULT_FILTERS: SearchFilters = {
-  transaction_type: 'rent',
-  arrondissements: [],
   price_min: 0,
   price_max: 0,
   surface_min: 0,
   surface_max: 0,
   rooms_min: 0,
-  min_likes: 0,
 };
 
 export type SearchList = {

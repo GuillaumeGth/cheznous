@@ -35,12 +35,6 @@ type Listing = {
 
 Types fournisseur (`ProviderAccount`, `FeedLink`, `FeedItem`, `ProviderAlert`) : voir [services.md](services.md) et [firebase.md](firebase.md).
 
-## TransactionType
-
-```ts
-type TransactionType = 'rent' | 'buy'; // 'rent' = location, 'buy' = achat
-```
-
 ## SearchFilters
 
 Critères de filtrage appliqués aux annonces. Les bornes numériques sont des
@@ -48,8 +42,6 @@ Critères de filtrage appliqués aux annonces. Les bornes numériques sont des
 
 ```ts
 type SearchFilters = {
-  transaction_type: TransactionType; // location ou achat
-  arrondissements: number[];         // [] = tous
   price_min: number;                 // prix/loyer min ; 0 = pas de min
   price_max: number;                 // prix/loyer max ; 0 = pas de max
   surface_min: number;               // surface min (m²) ; 0 = pas de min
@@ -58,8 +50,6 @@ type SearchFilters = {
 };
 
 const DEFAULT_FILTERS: SearchFilters = {
-  transaction_type: 'rent',
-  arrondissements: [],
   price_min: 0,
   price_max: 0,
   surface_min: 0,
@@ -68,9 +58,9 @@ const DEFAULT_FILTERS: SearchFilters = {
 };
 ```
 
-> **Sémantique du prix** : en location, `price_min`/`price_max` sont un **loyer
-> mensuel** (€/mois) ; en achat, un **prix de vente total** (€). L'UI adapte le
-> libellé (« Loyer » vs « Prix ») selon `transaction_type`.
+> Ces filtres **affinent** l'alerte Jinka liée, qui définit le reste de la
+> recherche (type de transaction, localisation…). `price_min`/`price_max` sont
+> un loyer mensuel (€/mois).
 
 ## SearchList
 
