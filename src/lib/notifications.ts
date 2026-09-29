@@ -165,23 +165,6 @@ export async function notifyColocsOfSwipe(
   );
 }
 
-export async function notifyGroupInvitation(inviteeId: string, inviterName: string): Promise<void> {
-  try {
-    const inviteeSnap = await getDoc(doc(db, 'users', inviteeId));
-    if (!inviteeSnap.exists()) return;
-    const token: string | null = inviteeSnap.data().push_token ?? null;
-    if (!token) return;
-    await sendPushNotification(
-      token,
-      'Invitation à rejoindre un groupe',
-      `${inviterName} t'invite à chercher un appart ensemble`,
-      { type: 'group_invitation' },
-    );
-  } catch (e) {
-    logError(e, 'notifyGroupInvitation');
-  }
-}
-
 export async function scheduleNewListingsNotification(count: number): Promise<void> {
   const N = getNotifications();
   if (!N) return;

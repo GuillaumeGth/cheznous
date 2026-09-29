@@ -41,11 +41,10 @@ There is no lint script configured.
 
 ```
 app/
-  _layout.tsx          ← root: Firebase auth listener, push token registration
+  _layout.tsx          ← root: Firebase auth listener, push token registration, <SharedGroupsSync/>
   index.tsx            ← redirect hub (see flow below)
   (auth)/
     index.tsx          ← email/password + Google sign-in, creates Firestore user doc
-    invite.tsx         ← create or join a group via invite code
   (tabs)/
     index.tsx          ← swipe screen (main feature)
     matches.tsx        ← matched listings list
@@ -57,14 +56,16 @@ app/
     [groupId].tsx      ← per-group chat
   groups/
     index.tsx          ← groups list
-    [id].tsx           ← group detail (members, invitations)
+    [id].tsx           ← group detail (name, members, active group)
 ```
 
 **Navigation flow:** `app/index.tsx` reads `authStore` (atomic selectors) and redirects via `<Redirect>`:
 - `isLoading` → loading spinner
 - No Firebase user → `/(auth)`
-- User but no `groupId` → `/(auth)/invite`
+- User but no `groupId` → spinner while `SharedGroupsSync` sets one
 - User + `groupId` → `/(tabs)`
+
+**Shared groups:** every user of the app is a member of every group — no invite code, no invitations, no leaving. `src/components/SharedGroupsSync.tsx` (mounted once in the root layout) watches the `groups` collection, joins the user to any group they're missing (`joinGroup`, allowed by the rules' "add only yourself" update), creates a first group if none exists, and picks an active group when the user has none (`planSharedGroups` in `src/services/sharedGroups.ts`).
 
 ### State management (Zustand)
 
@@ -83,10 +84,9 @@ Singleton init in `src/lib/firebase.ts` with `experimentalForceLongPolling: true
 | Collection | Doc ID | Notes |
 |---|---|---|
 | `users` | `{uid}` | UserProfile; `push_token` stored here. Group membership in `couple_id` field (= active groupId) |
-| `groups` | auto | `name`, `member_ids[]`, `invite_code`, `search_lists[]` (each list has its own `filters`, optional `member_ids` sub-group, `cover_photo_url`), `active_search_list_id`. `user1_id`/`user2_id`/`filters` are legacy |
+| `groups` | auto | `name`, `member_ids[]` (= every user, see Shared groups), `search_lists[]` (each list has its own `filters`, optional `member_ids` sub-group, `cover_photo_url`), `active_search_list_id`. `user1_id`/`user2_id`/`filters`/`invite_code` are legacy |
 | `groups/{id}/messages` | auto | `GroupMessage`; group chat subcollection (text / system / listing_share) |
 | `notes` | `{uid}_{listingId}` | Per-user note on a listing; all members' notes are read together (`useListingNotes`) |
-| `group_invitations` | auto | `GroupInvitation` — pending/accepted/rejected |
 | `follows` | `{follower_id}_{following_id}` | Follow relationships between users |
 | `listings` | `{listingId}` | Shared listing cache read by likes/matches. Written by the server sync (`jinka_{adId}`) or by the client for mock listings; `expired_at` set by the server |
 | `groups/{id}/feeds` | `{listId}` | `FeedLink`: search list ↔ Jinka alert (`owner_id`, `alert_id`, `status`). **Server-only writes**, members read |

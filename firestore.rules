@@ -25,7 +25,7 @@ service cloud.firestore {
           resource.data.user2_id == request.auth.uid
         );
       }
-      // Any authenticated user can read a group (needed for invite-code lookup) and create one.
+      // Every group is shared by all users: any signed-in user can read and create one.
       allow read, create: if request.auth != null;
       // Existing members can update; a new coloc may join by adding only themselves.
       allow update: if isMember()

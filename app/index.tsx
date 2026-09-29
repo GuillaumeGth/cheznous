@@ -9,7 +9,9 @@ export default function Index() {
   const hasUser = useAuthStore((s) => !!s.firebaseUser);
   const hasGroup = useAuthStore((s) => !!s.groupId);
 
-  if (isLoading) {
+  // No group yet: SharedGroupsSync joins every group / creates one and sets
+  // the active group — there is no invite step anymore.
+  if (isLoading || (hasUser && !hasGroup)) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FA' }}>
         <ActivityIndicator size="large" color="#4A6CF7" />
@@ -18,6 +20,5 @@ export default function Index() {
   }
 
   if (!hasUser) return <Redirect href="/(auth)" />;
-  if (!hasGroup) return <Redirect href="/(auth)/invite" />;
   return <Redirect href="/(tabs)" />;
 }

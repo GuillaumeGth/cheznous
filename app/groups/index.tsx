@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator,
 } from 'react-native';
@@ -7,16 +7,29 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/authStore';
 import { useGroups } from '@/hooks/useGroups';
+import { createGroup } from '@/services/groups';
 import { Group } from '@/types';
 import { styles } from '@/styles/groupsList.styles';
 
 export default function GroupsListScreen() {
   const activeGroupId = useAuthStore((s) => s.groupId);
   const { groups, loading } = useGroups();
+  const [creating, setCreating] = useState(false);
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'));
   const openGroup = (id: string) => router.push(`/groups/${id}`);
-  const createOrJoin = () => router.push('/(auth)/invite?from=groups');
+  // Everyone shares every group: a new group is joined by the others automatically.
+  const create = async () => {
+    const uid = useAuthStore.getState().firebaseUser?.uid;
+    if (!uid || creating) return;
+    setCreating(true);
+    try {
+      const { id } = await createGroup(uid);
+      router.push(`/groups/${id}`);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -35,7 +48,7 @@ export default function GroupsListScreen() {
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {groups.length === 0 ? (
             <Text style={styles.empty}>
-              Tu n'as pas encore de groupe de recherche. Crée-en un ou rejoins celui d'un coloc.
+              Aucun groupe pour le moment.
             </Text>
           ) : (
             groups.map((group) => (
@@ -48,9 +61,9 @@ export default function GroupsListScreen() {
             ))
           )}
 
-          <TouchableOpacity style={styles.addBtn} onPress={createOrJoin}>
-            <Ionicons name="add" size={20} color="#fff" />
-            <Text style={styles.addBtnText}>Créer ou rejoindre un groupe</Text>
+          <TouchableOpacity style={styles.addBtn} onPress={create} disabled={creating}>
+            {creating ? <ActivityIndicator color="#fff" /> : <Ionicons name="add" size={20} color="#fff" />}
+            <Text style={styles.addBtnText}>Créer un groupe</Text>
           </TouchableOpacity>
         </ScrollView>
       )}

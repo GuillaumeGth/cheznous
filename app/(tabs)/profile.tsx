@@ -13,9 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { auth, db, storage } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { useGroup } from '@/hooks/useGroup';
-import { useGroupInvitations } from '@/hooks/useGroupInvitations';
 import { registerPushToken } from '@/lib/notifications';
-import PendingInvitationBanner from '@/components/PendingInvitationBanner';
 import Toast, { ToastType } from '@/components/Toast';
 import ConfirmSheet from '@/components/ConfirmSheet';
 import ProviderAccountSection from '@/components/ProviderAccountSection';
@@ -26,7 +24,6 @@ export default function ProfileScreen() {
   const firebaseUser = useAuthStore((s) => s.firebaseUser);
   const profile = useAuthStore((s) => s.profile);
   const { group } = useGroup();
-  const pendingInvitations = useGroupInvitations();
 
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -154,14 +151,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Invitations en attente */}
-        {pendingInvitations.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Invitations</Text>
-            <PendingInvitationBanner invitations={pendingInvitations} />
-          </View>
-        )}
-
         {/* Groupes — entrée vers l'écran dédié */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Groupes</Text>
@@ -176,7 +165,7 @@ export default function ProfileScreen() {
               <Text style={styles.groupEntrySub}>
                 {group
                   ? (colocCount === 0 ? 'Juste toi' : `${colocCount} coloc${colocCount > 1 ? 's' : ''}`)
-                  : 'Créer ou rejoindre un groupe'}
+                  : 'Créer un groupe'}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />

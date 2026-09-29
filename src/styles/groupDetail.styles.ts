@@ -49,19 +49,11 @@ export const styles = StyleSheet.create({
   },
   label: { fontSize: 14, color: '#888' },
   value: { fontSize: 14, fontWeight: '600', color: '#1A1A2E' },
-  inviteCode: { fontSize: 18, fontWeight: '800', letterSpacing: 4, color: '#4A6CF7' },
   memberRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6,
   },
   memberName: { fontSize: 14, color: '#1A1A2E', fontWeight: '500' },
 
-  btn: {
-    backgroundColor: '#EEF1FF',
-    borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 8,
-    flexDirection: 'row', gap: 6, justifyContent: 'center',
-  },
-  btnSecondary: { marginTop: 4 },
-  btnText: { color: '#4A6CF7', fontWeight: '700', fontSize: 14 },
 
   activeBtn: {
     backgroundColor: '#4A6CF7', borderRadius: 14,
@@ -76,10 +68,4 @@ export const styles = StyleSheet.create({
   },
   activeChipText: { color: '#16A34A', fontWeight: '700', fontSize: 14 },
 
-  leaveBtn: {
-    marginHorizontal: 16, backgroundColor: '#fff', borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#FF4444',
-  },
-  leaveText: { color: '#FF4444', fontSize: 15, fontWeight: '700' },
 });

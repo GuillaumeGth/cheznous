@@ -1,20 +1,15 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Share, TextInput,
+  View, Text, TouchableOpacity, ScrollView, ActivityIndicator, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/authStore';
 import { useGroupById } from '@/hooks/useGroupById';
-import { useGroups } from '@/hooks/useGroups';
-import { renameGroup, leaveGroup, setActiveGroup } from '@/services/groups';
-import AddMemberSheet from '@/components/AddMemberSheet';
-import ConfirmSheet from '@/components/ConfirmSheet';
+import { renameGroup, setActiveGroup } from '@/services/groups';
 import Toast, { ToastType } from '@/components/Toast';
 import { styles } from '@/styles/groupDetail.styles';
-
-type ActiveModal = 'addMember' | 'leave' | null;
 
 export default function GroupDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -23,9 +18,7 @@ export default function GroupDetailScreen() {
   const uid = useAuthStore((s) => s.firebaseUser?.uid);
   const activeGroupId = useAuthStore((s) => s.groupId);
   const { group, memberProfiles, loading } = useGroupById(groupId);
-  const { groups } = useGroups();
 
-  const [modal, setModal] = useState<ActiveModal>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
@@ -52,13 +45,6 @@ export default function GroupDetailScreen() {
     }
   };
 
-  const shareInvite = () => {
-    if (!group?.invite_code) return;
-    Share.share({
-      message: `Rejoins-moi sur Chez Nous pour chercher notre appart à Paris ! Code : ${group.invite_code}`,
-    });
-  };
-
   const makeActive = async () => {
     if (!group || !uid) return;
     try {
@@ -66,21 +52,6 @@ export default function GroupDetailScreen() {
       showToast('Groupe actif mis à jour !', 'success');
     } catch {
       showToast('Impossible de changer de groupe actif.', 'error');
-    }
-  };
-
-  const confirmLeave = async () => {
-    setModal(null);
-    if (!group || !uid) return;
-    try {
-      await leaveGroup(group.id, uid);
-      if (activeGroupId === group.id) {
-        const next = groups.find((g) => g.id !== group.id);
-        await setActiveGroup(uid, next ? next.id : null);
-      }
-      goBack();
-    } catch {
-      showToast('Impossible de quitter le groupe.', 'error');
     }
   };
 
@@ -154,21 +125,6 @@ export default function GroupDetailScreen() {
                   ))}
                 </>
               )}
-
-              <View style={styles.divider} />
-              <TouchableOpacity style={styles.btn} onPress={() => setModal('addMember')}>
-                <Ionicons name="person-add-outline" size={15} color="#4A6CF7" />
-                <Text style={styles.btnText}>Ajouter un coloc</Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider} />
-              <View style={styles.row}>
-                <Text style={styles.label}>Code d'invitation</Text>
-                <Text style={styles.inviteCode}>{group.invite_code}</Text>
-              </View>
-              <TouchableOpacity style={[styles.btn, styles.btnSecondary]} onPress={shareInvite}>
-                <Text style={styles.btnText}>Partager le code</Text>
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -186,34 +142,8 @@ export default function GroupDetailScreen() {
               </TouchableOpacity>
             )}
           </View>
-
-          {/* Quitter */}
-          <View style={styles.section}>
-            <TouchableOpacity style={styles.leaveBtn} onPress={() => setModal('leave')}>
-              <Text style={styles.leaveText}>Quitter le groupe</Text>
-            </TouchableOpacity>
-          </View>
         </ScrollView>
       )}
-
-      {group && (
-        <AddMemberSheet
-          visible={modal === 'addMember'}
-          groupId={group.id}
-          currentMemberIds={group.member_ids ?? [group.user1_id, ...(group.user2_id ? [group.user2_id] : [])]}
-          onClose={() => setModal(null)}
-        />
-      )}
-
-      <ConfirmSheet
-        visible={modal === 'leave'}
-        title="Quitter le groupe"
-        message="Tu ne verras plus les recherches ni les matchs de ce groupe. Tu pourras le rejoindre à nouveau avec le code d'invitation."
-        confirmLabel="Quitter"
-        confirmDestructive
-        onConfirm={confirmLeave}
-        onCancel={() => setModal(null)}
-      />
 
       <Toast
         visible={!!toast}

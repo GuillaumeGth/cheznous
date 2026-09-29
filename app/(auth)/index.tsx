@@ -75,7 +75,7 @@ export default function LoginScreen() {
         setProfile(profile);
         const groupId = profile.couple_id ?? null;
         setGroupId(groupId);
-        router.replace(groupId ? '/(tabs)' : '/(auth)/invite');
+        router.replace('/');
       } else {
         await setDoc(doc(db, 'users', userCred.user.uid), {
           id: userCred.user.uid,
@@ -88,7 +88,7 @@ export default function LoginScreen() {
           notification_prefs: DEFAULT_NOTIFICATION_PREFS,
           created_at: new Date().toISOString(),
         });
-        router.replace('/(auth)/invite');
+        router.replace('/');
       }
     } catch (e: any) {
       logError(e, 'auth-google-credential');
@@ -127,9 +127,9 @@ export default function LoginScreen() {
         setProfile(profile);
         const groupId = profile.couple_id ?? null;
         setGroupId(groupId);
-        router.replace(groupId ? '/(tabs)' : '/(auth)/invite');
+        router.replace('/');
       } else {
-        router.replace('/(auth)/invite');
+        router.replace('/');
       }
     } catch (e: any) {
       logError(e, `auth-${mode}`);

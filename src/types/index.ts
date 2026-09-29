@@ -81,20 +81,10 @@ export type Group = {
   user1_id: string;       // legacy
   user2_id: string | null; // legacy
   member_ids: string[];   // liste authoritative de tous les colocs
-  invite_code: string;    // code 6 chars (ex: "AB12CD")
+  invite_code?: string;   // legacy (plus de code : tous les groupes sont partagés)
   filters: SearchFilters; // legacy — conservé pour migration
   search_lists: SearchList[];
   active_search_list_id: string;
-  created_at: string;
-};
-
-export type GroupInvitation = {
-  id: string;
-  group_id: string;
-  inviter_id: string;
-  inviter_name: string;
-  invitee_id: string;
-  status: 'pending' | 'accepted' | 'rejected';
   created_at: string;
 };
 
