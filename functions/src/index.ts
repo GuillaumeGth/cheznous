@@ -10,6 +10,7 @@ import {
 import { createJinkaProvider } from './providers/jinka/jinkaProvider';
 import { firestoreFeedStore } from './store/firestoreFeedStore';
 import { SyncDeps, syncFeeds } from './sync';
+import { DAY_SCHEDULE, NIGHT_SCHEDULE, nightRunMode, TIME_ZONE } from './schedule';
 
 // Firestore is in eur3; keep functions close to it (and to Jinka).
 setGlobalOptions({ region: 'europe-west1', maxInstances: 5 });
@@ -41,17 +42,20 @@ export const disconnectListingProvider = callable(disconnectProvider);
 export const refreshListingProviderAlerts = callable(refreshProviderAlerts);
 export const linkSearchListToAlert = callable(linkSearchList);
 
+// Daytime: every 30 min, first page(s) of each linked alert only.
 export const syncListingFeeds = onSchedule(
-  { schedule: 'every 20 minutes', timeZone: 'Europe/Paris', timeoutSeconds: 540 },
+  { schedule: DAY_SCHEDULE, timeZone: TIME_ZONE, timeoutSeconds: 540 },
   async () => {
     logger.info('syncListingFeeds', await syncFeeds(deps));
   },
 );
 
-// Nightly full pass: expirations deep in the alerts + purge of old expired items.
-export const sweepListingFeeds = onSchedule(
-  { schedule: 'every day 04:00', timeZone: 'Europe/Paris', timeoutSeconds: 540 },
-  async () => {
-    logger.info('sweepListingFeeds', await syncFeeds(deps, undefined, 'sweep'));
+// Night: every 3 h; the 03:00 run is the full sweep (alert names, expirations
+// deep in the alerts, purge of old expired items).
+export const syncListingFeedsNight = onSchedule(
+  { schedule: NIGHT_SCHEDULE, timeZone: TIME_ZONE, timeoutSeconds: 540 },
+  async (event) => {
+    const mode = nightRunMode(new Date(event.scheduleTime));
+    logger.info('syncListingFeedsNight', { mode, ...(await syncFeeds(deps, undefined, mode)) });
   },
 );

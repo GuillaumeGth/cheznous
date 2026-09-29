@@ -1,5 +1,5 @@
 import { Firestore } from 'firebase-admin/firestore';
-import { FeedStore, UpsertResult } from './FeedStore';
+import { FeedStore, isUnchanged, UpsertResult } from './FeedStore';
 import { FeedItem, FeedLink, Listing, ProviderAccount, ProviderId } from '../types';
 
 // Firestore layout (see firestore.rules):
@@ -75,7 +75,7 @@ export function firestoreFeedStore(db: Firestore): FeedStore {
 
     async upsertFeedItems(groupId, listId, listings, nowIso) {
       const col = itemsRef(groupId, listId);
-      const result: UpsertResult = { added: 0, expired: [] };
+      const result: UpsertResult = { added: 0, expired: [], written: 0 };
       for (const chunk of chunks(listings, BATCH_SIZE)) {
         const snaps = await db.getAll(...chunk.map((l) => col.doc(l.id)));
         const batch = db.batch();
@@ -83,15 +83,28 @@ export function firestoreFeedStore(db: Firestore): FeedStore {
           const prev = snaps[i].exists ? (snaps[i].data() as FeedItem) : null;
           const active = listing.expired_at === null;
           if (!prev && !active) return;
+          if (prev && isUnchanged(listing, prev)) return;
           if (!prev) result.added += 1;
           if (prev?.active && !active) result.expired.push(listing);
           const item: FeedItem = { ...listing, active, fetched_at: nowIso, added_at: prev?.added_at ?? nowIso };
           batch.set(col.doc(listing.id), item);
           batch.set(db.collection('listings').doc(listing.id), listing, { merge: true });
+          result.written += 1;
         });
-        await batch.commit();
+        if (result.written > 0) await batch.commit();
       }
       return result;
+    },
+
+    async knownItemIds(groupId, listId, ids) {
+      if (ids.length === 0) return new Set();
+      const col = itemsRef(groupId, listId);
+      const known = new Set<string>();
+      for (const chunk of chunks(ids, BATCH_SIZE)) {
+        const snaps = await db.getAll(...chunk.map((id) => col.doc(id)));
+        snaps.forEach((snap) => { if (snap.exists) known.add(snap.id); });
+      }
+      return known;
     },
 
     async expireMissingItems(groupId, listId, seenIds, nowIso) {

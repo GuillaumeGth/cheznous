@@ -217,7 +217,7 @@ Init singleton dans `src/lib/firebase.ts` avec `experimentalForceLongPolling: tr
 
 ### Pipeline des annonces
 
-Les annonces viennent des **alertes Jinka** d'un membre, synchronisées par des **Cloud Functions** (`functions/`) dans `groups/{g}/feeds/{listId}/items` : toutes les 20 min (premières pages) et chaque nuit (balayage complet, expirations, purge). Un membre connecte son compte Jinka (Profil) et lie une alerte à une recherche (Filtres → « Source des annonces ») ; tout le groupe swipe ce flux. L'app lit le flux via `ListingsDataSource` (`src/services/listings/`), exclut les annonces déjà swipées, et pré-charge quand il reste ≤ 3 cartes. Détails : [docs/services.md](docs/services.md).
+Les annonces viennent des **alertes Jinka** d'un membre, synchronisées par des **Cloud Functions** (`functions/`) dans `groups/{g}/feeds/{listId}/items`  (uniquement les alertes liées à une recherche) : toutes les 30 min de 8 h à 20 h 30 (page 1, puis suivantes seulement s'il y a du nouveau), puis à 21 h, 0 h, 3 h et 6 h ; le passage de 3 h fait le balayage complet (expirations, purge). Un membre connecte son compte Jinka (Profil) et lie une alerte à une recherche (Filtres → « Source des annonces ») ; tout le groupe swipe ce flux. L'app lit le flux via `ListingsDataSource` (`src/services/listings/`), exclut les annonces déjà swipées, et pré-charge quand il reste ≤ 3 cartes. Détails : [docs/services.md](docs/services.md).
 
 **Champs `SearchFilters`** — convention : `0` signifie « aucune restriction » pour les bornes numériques. Ils **affinent** l'alerte Jinka côté client.
 

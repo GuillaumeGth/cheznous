@@ -22,6 +22,14 @@ export type ProviderAlertPage = {
   nbPages: number;
 };
 
+/** The alert no longer exists on the provider (deleted by the user). */
+export class ProviderAlertNotFoundError extends Error {
+  constructor(readonly alertId: string) {
+    super(`Alert ${alertId} not found`);
+    this.name = 'ProviderAlertNotFoundError';
+  }
+}
+
 /** Invalid credentials or expired token — the user must reconnect. */
 export class ProviderAuthError extends Error {
   constructor(message: string) {

@@ -1,5 +1,7 @@
 import { ProviderAlert } from '../../types';
-import { ListingProvider, ProviderAlertPage, ProviderAuthError } from '../ListingProvider';
+import {
+  ListingProvider, ProviderAlertNotFoundError, ProviderAlertPage, ProviderAuthError,
+} from '../ListingProvider';
 import { JinkaRawAd, mapJinkaAd } from './jinkaMapper';
 
 // TypeScript port of the HTTP calls made by kajin
@@ -58,6 +60,15 @@ export function createJinkaProvider(options: JinkaProviderOptions = {}): Listing
     return res.json();
   }
 
+  async function getDashboard(token: string, alertId: string, page: number): Promise<unknown> {
+    try {
+      return await getJson(`/alert/${encodeURIComponent(alertId)}/dashboard?filter=all&page=${page}`, token);
+    } catch (e) {
+      if (e instanceof JinkaHttpError && e.status === 404) throw new ProviderAlertNotFoundError(alertId);
+      throw e;
+    }
+  }
+
   return {
     id: 'jinka',
 
@@ -93,10 +104,10 @@ export function createJinkaProvider(options: JinkaProviderOptions = {}): Listing
     },
 
     async fetchAlertPage(token, alertId, page): Promise<ProviderAlertPage> {
-      const data = (await getJson(
-        `/alert/${encodeURIComponent(alertId)}/dashboard?filter=all&page=${page}`,
-        token,
-      )) as { ads?: unknown; pagination?: { nbPages?: unknown; nb_pages?: unknown } };
+      const data = (await getDashboard(token, alertId, page)) as {
+        ads?: unknown;
+        pagination?: { nbPages?: unknown; nb_pages?: unknown };
+      };
       const nbPages = Number(data.pagination?.nbPages ?? data.pagination?.nb_pages ?? 1);
       const ads = Array.isArray(data.ads) ? (data.ads as JinkaRawAd[]) : [];
       return {

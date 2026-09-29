@@ -1,18 +1,21 @@
 import { logger } from 'firebase-functions/logger';
 import { FeedStore } from './store/FeedStore';
-import { ListingProvider, ProviderAuthError } from './providers/ListingProvider';
+import { ListingProvider, ProviderAlertNotFoundError, ProviderAuthError } from './providers/ListingProvider';
 import { FeedLink, GroupSummary, Listing, ProviderId } from './types';
 
 /**
- * - `incremental` (every 20 min): first pages only — provider dashboards list
- *   newest first, which is enough to catch new ads with few requests.
- * - `sweep` (nightly): reads every page (up to a cap) to catch ads that expired
- *   deeper in the list, expires ads that vanished from the alert, and purges
- *   long-expired items from the feed.
+ * Only the alerts linked to a search list are read — never anything else.
+ *
+ * - `incremental` (day every 30 min, night every 3 h): provider dashboards
+ *   list newest first, so read page 1 and go on only while a page still
+ *   brings new ads (≤ INCREMENTAL_MAX_PAGES). Usually a single request.
+ * - `sweep` (once a night): refreshes the alert names, reads every page (up to
+ *   a cap) to catch ads that expired deeper in the list, expires ads that
+ *   vanished from the alert, and purges long-expired items from the feed.
  */
 export type SyncMode = 'incremental' | 'sweep';
 
-export const MAX_PAGES_PER_ALERT = 3;
+export const INCREMENTAL_MAX_PAGES = 3;
 export const SWEEP_MAX_PAGES = 20;
 export const PURGE_AFTER_DAYS = 30;
 
@@ -95,28 +98,34 @@ async function syncOwner(deps: SyncDeps, feeds: FeedLink[], mode: SyncMode, repo
   }
 
   try {
-    const alerts = await provider.listAlerts(token);
-    await store.updateAccount(ownerId, providerId, {
-      alerts, status: 'ok', last_sync_at: nowIso, last_error: null,
-    });
-    const alertIds = new Set(alerts.map((a) => a.id));
-    const maxPages = mode === 'sweep' ? SWEEP_MAX_PAGES : MAX_PAGES_PER_ALERT;
+    // Alert names change rarely: refresh them on the sweep only.
+    const alertIds = mode === 'sweep' ? await refreshAlerts(deps, ownerId, providerId, token) : null;
+    const maxPages = mode === 'sweep' ? SWEEP_MAX_PAGES : INCREMENTAL_MAX_PAGES;
     const purgeBefore = new Date(now().getTime() - PURGE_AFTER_DAYS * 86_400_000).toISOString();
 
     for (const [alertId, alertFeeds] of groupBy(feeds, (f) => f.alert_id)) {
-      if (!alertIds.has(alertId)) {
+      if (alertIds && !alertIds.has(alertId)) {
         await setFeedsStatus(alertFeeds, 'error');
         continue;
       }
-      const { listings, complete } = await fetchAlert(provider, token, alertId, maxPages);
+      const hasNew = mode === 'sweep' ? null : (page: Listing[]) => bringsNewItems(store, alertFeeds, page);
+      let fetched: { listings: Listing[]; complete: boolean };
+      try {
+        fetched = await fetchAlert(provider, token, alertId, maxPages, hasNew);
+      } catch (e) {
+        if (!(e instanceof ProviderAlertNotFoundError)) throw e;
+        await setFeedsStatus(alertFeeds, 'error'); // deleted on the provider: only this alert
+        continue;
+      }
       for (const feed of alertFeeds) {
-        await applyToFeed(store, feed, listings, mode === 'sweep' && complete, nowIso, report);
+        await applyToFeed(store, feed, fetched.listings, mode === 'sweep' && fetched.complete, nowIso, report);
         if (mode === 'sweep') {
           report.purgedItems += await store.purgeExpiredItems(feed.group_id, feed.list_id, purgeBefore);
         }
         await store.updateFeed(feed.group_id, feed.list_id, { status: 'ok', last_sync_at: nowIso });
       }
     }
+    await store.updateAccount(ownerId, providerId, { status: 'ok', last_sync_at: nowIso, last_error: null });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     if (e instanceof ProviderAuthError) {
@@ -153,20 +162,46 @@ async function applyToFeed(
   report.expiredItems += newlyExpired.length;
 }
 
+async function refreshAlerts(deps: SyncDeps, ownerId: string, providerId: ProviderId, token: string): Promise<Set<string>> {
+  const alerts = await deps.providers[providerId].listAlerts(token);
+  await deps.store.updateAccount(ownerId, providerId, { alerts });
+  return new Set(alerts.map((a) => a.id));
+}
+
+// A page brings something new if any linked feed misses one of its ads.
+async function bringsNewItems(store: FeedStore, feeds: FeedLink[], page: Listing[]): Promise<boolean> {
+  const ids = page.map((l) => l.id);
+  if (ids.length === 0) return false;
+  for (const feed of feeds) {
+    const known = await store.knownItemIds(feed.group_id, feed.list_id, ids);
+    if (known.size < ids.length) return true;
+  }
+  return false;
+}
+
+/**
+ * Reads the alert page by page, up to `maxPages`. With `hasNew`, stops after
+ * the first page that brings nothing new. `complete` = every page was read.
+ */
 async function fetchAlert(
   provider: ListingProvider,
   token: string,
   alertId: string,
   maxPages: number,
+  hasNew: ((page: Listing[]) => Promise<boolean>) | null,
 ): Promise<{ listings: Listing[]; complete: boolean }> {
   const byId = new Map<string, Listing>();
   let nbPages = 1;
+  let lastRead = 0;
   for (let page = 1; page <= Math.min(nbPages, maxPages); page += 1) {
     const result = await provider.fetchAlertPage(token, alertId, page);
     nbPages = result.nbPages;
+    lastRead = page;
+    const fresh = hasNew ? await hasNew(result.listings) : true;
     for (const listing of result.listings) byId.set(listing.id, listing);
+    if (!fresh) break;
   }
-  return { listings: [...byId.values()], complete: nbPages <= maxPages };
+  return { listings: [...byId.values()], complete: lastRead >= nbPages };
 }
 
 function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {

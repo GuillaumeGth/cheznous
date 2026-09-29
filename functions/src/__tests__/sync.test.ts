@@ -1,4 +1,4 @@
-import { MAX_PAGES_PER_ALERT, PURGE_AFTER_DAYS, SWEEP_MAX_PAGES, syncFeeds } from '../sync';
+import { INCREMENTAL_MAX_PAGES, PURGE_AFTER_DAYS, SWEEP_MAX_PAGES, syncFeeds } from '../sync';
 import { FakeProvider, FIXED_NOW, MemoryFeedStore, feedLink, makeListing } from './fakes';
 import { ProviderAccount } from '../types';
 
@@ -42,10 +42,10 @@ describe('syncFeeds', () => {
     expect(items.get('jinka_2')!.active).toBe(false); // expired on Jinka's side
     expect(store.listings.has('jinka_3')).toBe(true); // shared cache for likes/matches
     expect(store.feeds.get('g1/l1')).toMatchObject({ status: 'ok', last_sync_at: FIXED_NOW.toISOString() });
-    expect(store.accounts.get('alice/jinka')).toMatchObject({ status: 'ok', alerts: provider.alerts });
+    expect(store.accounts.get('alice/jinka')).toMatchObject({ status: 'ok', last_sync_at: FIXED_NOW.toISOString() });
   });
 
-  it(`fetches at most ${MAX_PAGES_PER_ALERT} pages per alert`, async () => {
+  it(`reads at most ${INCREMENTAL_MAX_PAGES} pages per alert on an empty feed`, async () => {
     const { store, provider, deps } = setup();
     await store.saveFeed(feedLink());
     provider.pages.set('a1', Array.from({ length: 10 }, (_, p) => [
@@ -55,7 +55,50 @@ describe('syncFeeds', () => {
     await syncFeeds(deps);
 
     const pageCalls = provider.calls.filter((c) => c.startsWith('page:'));
-    expect(pageCalls).toHaveLength(MAX_PAGES_PER_ALERT);
+    expect(pageCalls).toHaveLength(INCREMENTAL_MAX_PAGES);
+  });
+
+  it('stops at the first page that brings nothing new', async () => {
+    const { store, provider, deps } = setup();
+    await store.saveFeed(feedLink());
+    const pages = Array.from({ length: 5 }, (_, p) => [makeListing(`jinka_${p}`)]);
+    provider.pages.set('a1', pages);
+    await syncFeeds(deps); // fills pages 1..3
+    provider.calls = [];
+
+    provider.pages.set('a1', [[makeListing('jinka_new'), makeListing('jinka_0')], ...pages]);
+    await syncFeeds(deps);
+
+    // page 1 had a new ad → read page 2 (already known) → stop.
+    expect(provider.calls.filter((c) => c.startsWith('page:'))).toEqual(['page:a1:1', 'page:a1:2']);
+    expect(store.items.get('g1/l1')!.has('jinka_new')).toBe(true);
+  });
+
+  it('does not rewrite items that did not change', async () => {
+    const { store, provider, deps } = setup();
+    await store.saveFeed(feedLink());
+    provider.pages.set('a1', [[makeListing('jinka_1'), makeListing('jinka_2')]]);
+    await syncFeeds(deps);
+    expect(store.itemWrites).toBe(2);
+
+    provider.pages.set('a1', [[makeListing('jinka_1'), makeListing('jinka_2', { price: 900 })]]);
+    await syncFeeds(deps);
+
+    expect(store.itemWrites).toBe(3); // only the price drop
+    expect(store.items.get('g1/l1')!.get('jinka_2')!.price).toBe(900);
+  });
+
+  it('refreshes alert names only during the sweep', async () => {
+    const { store, provider, deps } = setup();
+    await store.saveFeed(feedLink());
+    provider.pages.set('a1', [[]]);
+
+    await syncFeeds(deps);
+    expect(provider.calls).not.toContain('alerts');
+
+    await syncFeeds(deps, undefined, 'sweep');
+    expect(provider.calls).toContain('alerts');
+    expect(store.accounts.get('alice/jinka')!.alerts).toEqual(provider.alerts);
   });
 
   it('fetches a shared alert once and fans it out to every linked list', async () => {
@@ -107,13 +150,18 @@ describe('syncFeeds', () => {
     expect(store.feeds.size).toBe(0);
   });
 
-  it('flags a feed whose alert was deleted on the provider side', async () => {
-    const { store, deps } = setup();
+  it('flags only the feed whose alert was deleted on the provider side', async () => {
+    const { store, provider, deps } = setup();
     await store.saveFeed(feedLink({ alert_id: 'gone' }));
+    await store.saveFeed(feedLink({ list_id: 'l2' }));
+    provider.pages.set('a1', [[makeListing('jinka_1')]]);
 
-    await syncFeeds(deps);
+    const report = await syncFeeds(deps);
 
     expect(store.feeds.get('g1/l1')!.status).toBe('error');
+    expect(store.feeds.get('g1/l2')!.status).toBe('ok');
+    expect(store.accounts.get('alice/jinka')!.status).toBe('ok');
+    expect(report.errors).toBe(0);
   });
 
   it('keeps syncing other owners when one fails with a network error', async () => {
@@ -124,10 +172,10 @@ describe('syncFeeds', () => {
     await store.saveFeed(feedLink());
     await store.saveFeed(feedLink({ group_id: 'g2', owner_id: 'bob' }));
     provider.pages.set('a1', [[makeListing('jinka_1')]]);
-    const original = provider.listAlerts.bind(provider);
-    provider.listAlerts = async (token: string) => {
+    const original = provider.fetchAlertPage.bind(provider);
+    provider.fetchAlertPage = async (token: string, alertId: string, page: number) => {
       if (token === 'tok') throw new Error('ECONNRESET');
-      return original(token);
+      return original(token, alertId, page);
     };
 
     const report = await syncFeeds(deps);

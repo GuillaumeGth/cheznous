@@ -69,7 +69,7 @@ export type FeedLink = {
 export type FeedItem = Listing & {
   /** First time the server saw this listing in this feed (pagination key). */
   added_at: string;
-  /** Last sync that returned it. */
+  /** Last sync that wrote it (new or changed content). */
   fetched_at: string;
   /** `expired_at === null` — denormalised so the app can query live items only. */
   active: boolean;

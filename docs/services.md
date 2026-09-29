@@ -14,8 +14,9 @@ Jinka (compte du membre qui lie l'alerte)
    ▲  token stocké côté serveur (provider_tokens) — jamais le mot de passe
    │
 Cloud Functions (europe-west1)
-   ├─ syncListingFeeds    toutes les 20 min — 3 premières pages par alerte
-   ├─ sweepListingFeeds   chaque nuit 04:00 — toutes les pages (≤ 20) + expirations + purge
+   ├─ syncListingFeeds       toutes les 30 min, 8:00 → 20:30 — page 1 (+ suivantes s'il y a du nouveau, ≤ 3)
+   ├─ syncListingFeedsNight  21:00, 0:00, 3:00, 6:00 — idem ; à 3:00 : balayage complet
+   │                         (noms d'alertes, toutes les pages ≤ 20, expirations, purge)
    └─ callables : connect / disconnect / refreshAlerts / linkSearchListToAlert
    │  interface ListingProvider ← abstraction (Jinka aujourd'hui, autre agrégateur demain)
    ▼
@@ -33,7 +34,8 @@ App : ListingsDataSource (feed | mock) → listingsStore → écran swipe
 
 | Fichier | Rôle |
 |---|---|
-| `src/providers/ListingProvider.ts` | Interface : `authenticate`, `listAlerts`, `fetchAlertPage` ; `ProviderAuthError` |
+| `src/providers/ListingProvider.ts` | Interface : `authenticate`, `listAlerts`, `fetchAlertPage` ; `ProviderAuthError`, `ProviderAlertNotFoundError` |
+| `src/schedule.ts` | Planning (Europe/Paris) et choix du mode du passage de nuit |
 | `src/providers/jinka/jinkaProvider.ts` | Appels HTTP Jinka (espacés de 500 ms, timeout 30 s) |
 | `src/providers/jinka/jinkaMapper.ts` | Annonce Jinka → `Listing` (`id = jinka_{adId}`) |
 | `src/store/FeedStore.ts` | Interface de persistance (fake mémoire en test) |
@@ -65,6 +67,10 @@ appartenant à son compte. Changer d'alerte vide l'ancien flux.
 
 ### Sync
 
+- **Seules les alertes liées à une recherche** sont lues ; la liste des noms d'alertes n'est relue qu'au balayage de 3 h (ou via « Actualiser »).
+- Passage normal : page 1, puis la suivante **seulement si la page apportait du nouveau** (≤ 3 pages) → en général 1 requête Jinka. ~30 passages/jour ≈ 35–50 requêtes Jinka/jour.
+- Les annonces **inchangées ne sont pas réécrites** (quota d'écritures Firestore : 20 000/jour gratuits, partagé avec l'app).
+- Une alerte supprimée sur Jinka (404) ne marque en `error` que ses propres flux.
 - Les flux sont regroupés par propriétaire → chaque alerte n'est lue **qu'une fois** puis dupliquée vers toutes les recherches liées.
 - Un flux est supprimé si sa recherche, son groupe n'existe plus, ou si son propriétaire a quitté le groupe.
 - **Session expirée** (401/403) : token supprimé, compte et flux passent en `status: 'expired'` → l'app affiche « reconnecte Jinka ». Pas de mot de passe stocké, donc reconnexion manuelle.

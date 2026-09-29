@@ -1,5 +1,5 @@
 import {
-  FeedLink, GroupSummary, Listing, ProviderAccount, ProviderId,
+  FeedItem, FeedLink, GroupSummary, Listing, ProviderAccount, ProviderId,
 } from '../types';
 
 export type UpsertResult = {
@@ -7,7 +7,17 @@ export type UpsertResult = {
   added: number;
   /** Items that were live and are now expired (to propagate to matches). */
   expired: Listing[];
+  /** Items actually written (new or changed) — unchanged ones are skipped. */
+  written: number;
 };
+
+/** True when the provider returned exactly what the feed already holds. */
+export function isUnchanged(listing: Listing, prev: FeedItem): boolean {
+  if (prev.active !== (listing.expired_at === null)) return false;
+  return (Object.keys(listing) as (keyof Listing)[]).every(
+    (key) => JSON.stringify(listing[key]) === JSON.stringify(prev[key]),
+  );
+}
 
 /**
  * Persistence used by sync and callables. `firestoreFeedStore` implements it
@@ -25,10 +35,12 @@ export interface FeedStore {
 
   /**
    * Upserts items into the feed and the shared `listings` cache. Existing
-   * items keep their `added_at`; an item seen for the first time already
-   * expired is skipped (nobody needs to swipe it).
+   * items keep their `added_at`; unchanged items aren't rewritten; an item seen
+   * for the first time already expired is skipped (nobody needs to swipe it).
    */
   upsertFeedItems(groupId: string, listId: string, listings: Listing[], nowIso: string): Promise<UpsertResult>;
+  /** Which of `ids` are already in the feed. */
+  knownItemIds(groupId: string, listId: string, ids: string[]): Promise<Set<string>>;
   /** Expires the live items not in `seenIds` (gone from the provider). Returns them. */
   expireMissingItems(groupId: string, listId: string, seenIds: Set<string>, nowIso: string): Promise<Listing[]>;
   /** Deletes items expired before `beforeIso`. `listings/{id}` is kept (likes/matches use it). */

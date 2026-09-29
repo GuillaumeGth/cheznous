@@ -1,5 +1,7 @@
-import { FeedStore, UpsertResult } from '../store/FeedStore';
-import { ListingProvider, ProviderAlertPage, ProviderAuthError } from '../providers/ListingProvider';
+import { FeedStore, isUnchanged, UpsertResult } from '../store/FeedStore';
+import {
+  ListingProvider, ProviderAlertNotFoundError, ProviderAlertPage, ProviderAuthError,
+} from '../providers/ListingProvider';
 import {
   FeedItem, FeedLink, GroupSummary, Listing, ProviderAccount, ProviderAlert, ProviderId,
 } from '../types';
@@ -13,6 +15,8 @@ export class MemoryFeedStore implements FeedStore {
   accounts = new Map<string, ProviderAccount>();
   /** listing id → expired_at, as propagated to `listings` + `matches`. */
   propagated = new Map<string, string | null>();
+  /** Number of feed item writes (to check unchanged items aren't rewritten). */
+  itemWrites = 0;
 
   private feedKey = (g: string, l: string) => `${g}/${l}`;
   private userKey = (u: string, p: ProviderId) => `${u}/${p}`;
@@ -37,17 +41,24 @@ export class MemoryFeedStore implements FeedStore {
     const key = this.feedKey(g, l);
     const feed = this.items.get(key) ?? new Map<string, FeedItem>();
     this.items.set(key, feed);
-    const result: UpsertResult = { added: 0, expired: [] };
+    const result: UpsertResult = { added: 0, expired: [], written: 0 };
     for (const listing of listings) {
       const prev = feed.get(listing.id);
       const active = listing.expired_at === null;
       if (!prev && !active) continue;
+      if (prev && isUnchanged(listing, prev)) continue;
       if (!prev) result.added += 1;
       if (prev?.active && !active) result.expired.push(listing);
       feed.set(listing.id, { ...listing, active, fetched_at: nowIso, added_at: prev?.added_at ?? nowIso });
       this.listings.set(listing.id, listing);
+      result.written += 1;
+      this.itemWrites += 1;
     }
     return result;
+  }
+  async knownItemIds(g: string, l: string, ids: string[]) {
+    const feed = this.items.get(this.feedKey(g, l));
+    return new Set(ids.filter((id) => feed?.has(id)));
   }
   async expireMissingItems(g: string, l: string, seen: Set<string>, nowIso: string) {
     const feed = this.items.get(this.feedKey(g, l)) ?? new Map<string, FeedItem>();
@@ -127,7 +138,8 @@ export class FakeProvider implements ListingProvider {
   async fetchAlertPage(token: string, alertId: string, page: number): Promise<ProviderAlertPage> {
     this.calls.push(`page:${alertId}:${page}`);
     this.check(token);
-    const pages = this.pages.get(alertId) ?? [];
+    if (!this.pages.has(alertId)) throw new ProviderAlertNotFoundError(alertId);
+    const pages = this.pages.get(alertId)!;
     return { listings: pages[page - 1] ?? [], nbPages: Math.max(pages.length, 1) };
   }
 }
