@@ -2,7 +2,8 @@
 
 ## Variables `.env`
 
-Le fichier `.env` (à la racine, ignoré par git) doit contenir :
+`.env` (versionné) est un **modèle sans valeurs**. Les vraies valeurs vont dans
+`.env.local` (ignoré par git via `.env*.local`, chargé en priorité par Expo) :
 
 ```env
 EXPO_PUBLIC_LISTINGS_SOURCE=      # 'mock' = annonces générées localement ; omis = flux Jinka (Cloud Functions)

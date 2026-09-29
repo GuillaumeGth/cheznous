@@ -136,7 +136,7 @@ Listings come from **Jinka** (no public API — its internal web API, ported fro
 
 ### Environment variables
 
-Required in `.env` (prefix `EXPO_PUBLIC_` makes them available client-side):
+`.env` is a committed template with empty values; put real values in `.env.local` (git-ignored, loaded by Expo with priority). Prefix `EXPO_PUBLIC_` makes them available client-side:
 
 ```
 EXPO_PUBLIC_LISTINGS_SOURCE=     # 'mock' = locally generated listings; omit = Jinka feed
