@@ -34,10 +34,15 @@ describe('jinkaProvider', () => {
   });
 
   it('lists alerts with the bearer token', async () => {
-    const { provider, fetchMock } = providerWith(jsonResponse([{ id: 42, name: 'Paris 11' }, { id: 7 }]));
+    const { provider, fetchMock } = providerWith(jsonResponse([
+      { id: 42, name: 'n°2', user_name: 'SO le J' },
+      { id: 43, name: 'Paris 11', user_name: '' },
+      { id: 7 },
+    ]));
 
     await expect(provider.listAlerts('tok')).resolves.toEqual([
-      { id: '42', name: 'Paris 11' },
+      { id: '42', name: 'SO le J' }, // the user's own name wins
+      { id: '43', name: 'Paris 11' },
       { id: '7', name: '7' },
     ]);
     expect((fetchMock.mock.calls[0][1].headers as Record<string, string>).Authorization).toBe('Bearer tok');

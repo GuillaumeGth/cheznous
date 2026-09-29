@@ -97,9 +97,12 @@ export function createJinkaProvider(options: JinkaProviderOptions = {}): Listing
     async listAlerts(token): Promise<ProviderAlert[]> {
       const data = await getJson('/alert', token);
       if (!Array.isArray(data)) throw new JinkaHttpError(200, 'Unexpected Jinka /alert response');
-      return data.map((a: { id: unknown; name?: unknown }) => ({
+      // `user_name` is the name the user gave the alert ("SO le J"); `name` is
+      // Jinka's default ("n°2").
+      const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+      return data.map((a: { id: unknown; name?: unknown; user_name?: unknown }) => ({
         id: String(a.id),
-        name: typeof a.name === 'string' && a.name ? a.name : String(a.id),
+        name: text(a.user_name) ?? text(a.name) ?? String(a.id),
       }));
     },
 

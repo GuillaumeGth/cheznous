@@ -88,6 +88,17 @@ describe('syncFeeds', () => {
     expect(store.items.get('g1/l1')!.get('jinka_2')!.price).toBe(900);
   });
 
+  it('renames linked feeds when the alert name changed (sweep)', async () => {
+    const { store, provider, deps } = setup();
+    await store.saveFeed(feedLink({ alert_name: 'n°2' }));
+    provider.alerts = [{ id: 'a1', name: 'SO le J' }];
+    provider.pages.set('a1', [[]]);
+
+    await syncFeeds(deps, undefined, 'sweep');
+
+    expect(store.feeds.get('g1/l1')!.alert_name).toBe('SO le J');
+  });
+
   it('refreshes alert names only during the sweep', async () => {
     const { store, provider, deps } = setup();
     await store.saveFeed(feedLink());

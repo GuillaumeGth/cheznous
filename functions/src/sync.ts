@@ -99,12 +99,12 @@ async function syncOwner(deps: SyncDeps, feeds: FeedLink[], mode: SyncMode, repo
 
   try {
     // Alert names change rarely: refresh them on the sweep only.
-    const alertIds = mode === 'sweep' ? await refreshAlerts(deps, ownerId, providerId, token) : null;
+    const alertNames = mode === 'sweep' ? await refreshAlerts(deps, ownerId, providerId, token) : null;
     const maxPages = mode === 'sweep' ? SWEEP_MAX_PAGES : INCREMENTAL_MAX_PAGES;
     const purgeBefore = new Date(now().getTime() - PURGE_AFTER_DAYS * 86_400_000).toISOString();
 
     for (const [alertId, alertFeeds] of groupBy(feeds, (f) => f.alert_id)) {
-      if (alertIds && !alertIds.has(alertId)) {
+      if (alertNames && !alertNames.has(alertId)) {
         await setFeedsStatus(alertFeeds, 'error');
         continue;
       }
@@ -122,7 +122,12 @@ async function syncOwner(deps: SyncDeps, feeds: FeedLink[], mode: SyncMode, repo
         if (mode === 'sweep') {
           report.purgedItems += await store.purgeExpiredItems(feed.group_id, feed.list_id, purgeBefore);
         }
-        await store.updateFeed(feed.group_id, feed.list_id, { status: 'ok', last_sync_at: nowIso });
+        const renamed = alertNames?.get(alertId);
+        await store.updateFeed(feed.group_id, feed.list_id, {
+          status: 'ok',
+          last_sync_at: nowIso,
+          ...(renamed && renamed !== feed.alert_name ? { alert_name: renamed } : {}),
+        });
       }
     }
     await store.updateAccount(ownerId, providerId, { status: 'ok', last_sync_at: nowIso, last_error: null });
@@ -162,10 +167,13 @@ async function applyToFeed(
   report.expiredItems += newlyExpired.length;
 }
 
-async function refreshAlerts(deps: SyncDeps, ownerId: string, providerId: ProviderId, token: string): Promise<Set<string>> {
+/** Refreshes the account's alert list; returns alert id → name. */
+async function refreshAlerts(
+  deps: SyncDeps, ownerId: string, providerId: ProviderId, token: string,
+): Promise<Map<string, string>> {
   const alerts = await deps.providers[providerId].listAlerts(token);
   await deps.store.updateAccount(ownerId, providerId, { alerts });
-  return new Set(alerts.map((a) => a.id));
+  return new Map(alerts.map((a) => [a.id, a.name]));
 }
 
 // A page brings something new if any linked feed misses one of its ads.
