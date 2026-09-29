@@ -57,39 +57,23 @@ export function useSwipeActions(
 
   const checkForMatch = useCallback(async (listing: Listing, listId: string) => {
     const { firebaseUser } = useAuthStore.getState();
-    const { searchLists } = useFilterStore.getState();
     const group = groupRef.current;
     if (!group || !firebaseUser) return;
 
-    const activeList = searchLists.find((l) => l.id === listId);
     const groupMemberIds = group.member_ids?.length
       ? group.member_ids
       : [group.user1_id, ...(group.user2_id ? [group.user2_id] : [])];
+    const otherIds = groupMemberIds.filter((id) => id !== firebaseUser.uid);
 
-    // Participants ciblés par ce critère : le sous-groupe de la liste si défini,
-    // sinon tous les membres du groupe.
-    const targetIds = activeList?.member_ids?.length ? activeList.member_ids : groupMemberIds;
-    const otherIds = targetIds.filter((id) => id !== firebaseUser.uid);
-
-    // Solo (ou critère ne ciblant que soi) : match immédiat.
+    // Seul dans le groupe : match immédiat.
     if (otherIds.length === 0) {
       await createMatch(listing, listId);
       return;
     }
 
-    // min_likes = 0 → unanimité ; sinon N votes au total (current user compris).
-    const minLikes = activeList?.filters?.min_likes ?? 0;
-    const totalParticipants = otherIds.length + 1;
-    const requiredTotal = minLikes > 0 && minLikes <= totalParticipants ? minLikes : totalParticipants;
-    // L'utilisateur courant vient de swiper right → il faut (requiredTotal - 1) autres.
-    const requiredFromOthers = requiredTotal - 1;
-
-    if (requiredFromOthers <= 0) {
-      await createMatch(listing, listId);
-      return;
-    }
-
-    alog('Firestore:getDocs swipes (checkForMatch)', { listingId: listing.id, listId, otherIds, requiredFromOthers });
+    // Match dès que deux participants ont liké le bien : l'utilisateur courant
+    // vient de swiper right, il suffit d'un autre like.
+    alog('Firestore:getDocs swipes (checkForMatch)', { listingId: listing.id, listId, otherIds });
     const swipeChecks = await Promise.all(
       otherIds.map((memberId) =>
         getDocs(query(
@@ -102,8 +86,7 @@ export function useSwipeActions(
       ),
     );
 
-    const approvedByOthers = swipeChecks.filter((snap) => !snap.empty).length;
-    if (approvedByOthers >= requiredFromOthers) {
+    if (swipeChecks.some((snap) => !snap.empty)) {
       await createMatch(listing, listId);
     }
   }, [groupRef, createMatch]);

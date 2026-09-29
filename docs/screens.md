@@ -90,7 +90,7 @@ Deux onglets : **Créer** / **Rejoindre**.
 - La note du partenaire est affichée sur la carte courante.
 
 **UI** :
-- Header : nom app + statut partenaire + bouton filtres.
+- Header : titre « Explorer » (pas de nom de groupe : il n'y en a qu'un) + avatars des colocs + bouton filtres.
 - Stack de 3 cartes (reverse render pour z-index).
 - Boutons bas : ✕ passer, crayon note, ♥ like.
 - Banner match animé en overlay.
@@ -104,7 +104,7 @@ Deux sections :
 
 **Nos coups de cœur** (matchs mutuels) :
 - `useMatches()` → liste realtime.
-- `MatchCard` avec statut (new/contacted/visited/rejected) et bouton "Marquer contacté".
+- `MatchCard` avec statut (new/contacted/visited/rejected).
 - `handleStatusChange` → `updateDoc(matches/{id}, { status })`.
 
 **Mes likes** (right-swipes personnels non encore matchés) :
@@ -112,7 +112,17 @@ Deux sections :
 - `LikeCard` (lecture seule).
 - Filtrés pour exclure ceux déjà dans les matchs.
 
+**Pull-to-refresh** : relit matchs et swipes depuis le serveur (`refresh` de
+`useMatches` / `useLikes`) et vide le cache TanStack des annonces pour les recharger
+(ex. une annonce expirée depuis sa mise en cache).
+
 ---
+
+## Chat — `app/(tabs)/chat.tsx`
+
+Affiche directement le chat du groupe unique (`authStore.groupId`) : pas de liste
+de conversations. Messages texte, système et annonces partagées (réactions 👍/👎,
+appui long sur un de ses messages → suppression). Hooks : `useGroupById`, `useGroupChat`.
 
 ## Profil — `app/(tabs)/profile.tsx`
 

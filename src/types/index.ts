@@ -20,40 +20,31 @@ export type Listing = {
   deposit: number;
   lat: number | null;
   lng: number | null;
+  /** Set by the server sync once the provider reports the ad gone. */
+  expired_at?: string | null;
 };
 
 export type SwipeDirection = 'left' | 'right';
 
-export type TransactionType = 'rent' | 'buy';
-
 /**
- * Numeric range fields (`price_min`, `price_max`, `surface_min`, `surface_max`)
- * use `0` as "no restriction" — i.e. `price_min: 0` means no lower bound,
- * `price_max: 0` means no upper bound. Only positive values are applied as filters.
- *
- * `min_likes`: nombre minimum de membres devant avoir liké un bien pour créer un
- * match. `0` = unanimité (tous les participants de la liste doivent approuver).
+ * Refinements applied client-side on top of the linked Jinka alert (which
+ * already defines the search). Numeric bounds use `0` as "no restriction" —
+ * i.e. `price_min: 0` means no lower bound, `price_max: 0` no upper bound.
  */
 export type SearchFilters = {
-  transaction_type: TransactionType;
-  arrondissements: number[];
   price_min: number;
   price_max: number;
   surface_min: number;
   surface_max: number;
   rooms_min: number;
-  min_likes: number;
 };
 
 export const DEFAULT_FILTERS: SearchFilters = {
-  transaction_type: 'rent',
-  arrondissements: [],
   price_min: 0,
   price_max: 0,
   surface_min: 0,
   surface_max: 0,
   rooms_min: 0,
-  min_likes: 0,
 };
 
 export type SearchList = {
@@ -79,20 +70,10 @@ export type Group = {
   user1_id: string;       // legacy
   user2_id: string | null; // legacy
   member_ids: string[];   // liste authoritative de tous les colocs
-  invite_code: string;    // code 6 chars (ex: "AB12CD")
+  invite_code?: string;   // legacy (plus de code : tous les groupes sont partagés)
   filters: SearchFilters; // legacy — conservé pour migration
   search_lists: SearchList[];
   active_search_list_id: string;
-  created_at: string;
-};
-
-export type GroupInvitation = {
-  id: string;
-  group_id: string;
-  inviter_id: string;
-  inviter_name: string;
-  invitee_id: string;
-  status: 'pending' | 'accepted' | 'rejected';
   created_at: string;
 };
 
@@ -175,4 +156,56 @@ export type UserProfile = {
   photo_url: string | null;
   notification_prefs: NotificationPrefs;
   created_at: string;
+};
+
+// --- Listing providers (Jinka…) — written by Cloud Functions only -----------
+// Mirrors `functions/src/types.ts`.
+
+export type ProviderId = 'jinka';
+
+export type ProviderAlert = {
+  id: string;
+  name: string;
+};
+
+export type ProviderSyncStatus = 'ok' | 'expired' | 'error';
+
+// Firestore: `users/global/provider_accounts/{provider}` — the app-wide Jinka
+// account, readable by every signed-in user. The token lives server-side.
+export type ProviderAccount = {
+  user_id: string;
+  provider: ProviderId;
+  status: ProviderSyncStatus;
+  alerts: ProviderAlert[];
+  connected_at: string;
+  last_sync_at: string | null;
+  last_error: string | null;
+  last_refetch_at?: string | null; // last manual refetch (server-side cooldown)
+  token_expires_at?: string | null; // JWT expiry of the app-wide token
+  admin_uids?: string[]; // who may replace the token / refetch
+};
+
+// The app runs on one app-wide Jinka account (the admin's session token):
+// `users/global/provider_accounts/jinka`. Mirrors GLOBAL_OWNER server-side.
+export const GLOBAL_PROVIDER_OWNER = 'global';
+
+// Firestore: `groups/{groupId}/feeds/{listId}` — which provider alert feeds a
+// search list. Its synced listings are in the `items` subcollection.
+export type FeedLink = {
+  group_id: string;
+  list_id: string;
+  provider: ProviderId;
+  owner_id: string;
+  alert_id: string;
+  alert_name: string;
+  linked_at: string;
+  status: ProviderSyncStatus;
+  last_sync_at: string | null;
+};
+
+// Firestore: `groups/{groupId}/feeds/{listId}/items/{listingId}`
+export type FeedItem = Listing & {
+  added_at: string;
+  fetched_at: string;
+  active: boolean;
 };

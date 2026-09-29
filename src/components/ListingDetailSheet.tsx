@@ -148,7 +148,9 @@ export default function ListingDetailSheet({ listing, onClose }: Props) {
             <View style={styles.metaRow}>
               <Ionicons name="location-outline" size={14} color="#888" />
               <Text style={styles.address}>
-                {listing.address} — {listing.arrondissement}ème arr.
+                {listing.arrondissement > 0
+                  ? `${listing.address} — ${listing.arrondissement}ème arr.`
+                  : listing.address}
               </Text>
             </View>
 

@@ -88,5 +88,5 @@ Deux listeners installés au mount du root layout et nettoyés au unmount :
 ## Limitations connues
 
 - Pas de server push : si l'app est fermée côté partenaire, le token peut être périmé sans que l'app le sache.
-- `notify_on_new_listings` dépend d'un champ `fetched_at` sur les listings Firestore qui n'est pas écrit par `listingsService` → la fonctionnalité est partiellement inactive.
+- `notify_on_new_listings` est une notification **locale** : elle compte les annonces ajoutées au flux de la recherche active depuis le dernier passage au premier plan (pas de push serveur quand l'app est fermée).
 - Les réponses de l'API Expo Push ne sont pas traitées (erreurs silencieuses).

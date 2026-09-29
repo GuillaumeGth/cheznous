@@ -1,11 +1,13 @@
 import React, { useCallback } from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, Pressable, LayoutChangeEvent } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
+  Easing,
   runOnJS,
   interpolate,
   Extrapolation,
@@ -17,6 +19,10 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CARD_W = SCREEN_W - 32;
 const CARD_H = SCREEN_H * 0.72;
 const SWIPE_THRESHOLD = 100;
+const PHOTO_SWIPE_THRESHOLD = 40;
+const PHOTO_SWIPE_VELOCITY = 500;
+const PHOTO_EDGE_RESISTANCE = 0.3;
+const PHOTO_SNAP = { duration: 260, easing: Easing.out(Easing.cubic) };
 
 type Props = {
   listing: Listing;
@@ -34,18 +40,65 @@ type Props = {
 export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, canUndo, isTop, index, onInfoPress, partnerNote, partnerName }: Props) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  // Bottom edge of the photo area (card coordinates): a pan starting above it
+  // browses photos instead of liking/passing.
+  const imageBottom = useSharedValue(0);
+  const isPhotoPan = useSharedValue(false);
+  // Photo strip: photoIndex mirrors imageIndex on the UI thread, photoX is the
+  // strip offset (follows the finger, then snaps to -photoIndex * CARD_W).
+  const photoIndex = useSharedValue(0);
+  const photoX = useSharedValue(0);
   const [imageIndex, setImageIndex] = React.useState(0);
+  const imageCount = listing.images.length;
 
   const handleSwipeLeft = useCallback(() => onSwipeLeft(), [onSwipeLeft]);
   const handleSwipeRight = useCallback(() => onSwipeRight(), [onSwipeRight]);
+  const goToImage = useCallback(
+    (i: number) => {
+      photoIndex.value = i;
+      photoX.value = withTiming(-i * CARD_W, PHOTO_SNAP);
+      setImageIndex(i);
+    },
+    [photoIndex, photoX],
+  );
+  const handleImageLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      imageBottom.value = e.nativeEvent.layout.y + e.nativeEvent.layout.height;
+    },
+    [imageBottom],
+  );
 
   const pan = Gesture.Pan()
     .enabled(isTop)
+    .onBegin((e) => {
+      isPhotoPan.value = e.y < imageBottom.value;
+    })
     .onUpdate((e) => {
+      if (isPhotoPan.value) {
+        const minX = -(imageCount - 1) * CARD_W;
+        const x = -photoIndex.value * CARD_W + e.translationX;
+        // Rubber-band past the first/last photo
+        photoX.value =
+          x > 0 ? x * PHOTO_EDGE_RESISTANCE
+          : x < minX ? minX + (x - minX) * PHOTO_EDGE_RESISTANCE
+          : x;
+        return;
+      }
       translateX.value = e.translationX;
       translateY.value = e.translationY * 0.3;
     })
     .onEnd((e) => {
+      if (isPhotoPan.value) {
+        const current = photoIndex.value;
+        let target = current;
+        if (e.translationX < -PHOTO_SWIPE_THRESHOLD || e.velocityX < -PHOTO_SWIPE_VELOCITY) target += 1;
+        else if (e.translationX > PHOTO_SWIPE_THRESHOLD || e.velocityX > PHOTO_SWIPE_VELOCITY) target -= 1;
+        target = Math.max(0, Math.min(target, imageCount - 1));
+        photoIndex.value = target;
+        photoX.value = withTiming(-target * CARD_W, PHOTO_SNAP);
+        if (target !== current) runOnJS(setImageIndex)(target);
+        return;
+      }
       if (e.translationX > SWIPE_THRESHOLD) {
         translateX.value = withSpring(SCREEN_W * 1.5);
         runOnJS(handleSwipeRight)();
@@ -78,6 +131,10 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, 
     };
   });
 
+  const photoStripStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: photoX.value }],
+  }));
+
   const likeOpacity = useAnimatedStyle(() => ({
     opacity: interpolate(translateX.value, [20, 80], [0, 1], Extrapolation.CLAMP),
   }));
@@ -94,16 +151,21 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, 
       <Animated.View style={[styles.card, cardStyle]}>
        <Pressable style={styles.pressable} onPress={onInfoPress} disabled={!isTop || !onInfoPress}>
         {/* Image carousel */}
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: listing.images[imageIndex] ?? listing.images[0] }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+        <View style={styles.imageContainer} onLayout={handleImageLayout}>
+          <Animated.View style={[styles.photoStrip, photoStripStyle]}>
+            {listing.images.map((uri, i) => (
+              <View key={i} style={styles.photoSlot}>
+                {/* Only the current photo and its neighbours are mounted */}
+                {Math.abs(i - imageIndex) <= 1 && (
+                  <Image source={{ uri }} style={styles.image} resizeMode="cover" />
+                )}
+              </View>
+            ))}
+          </Animated.View>
           {listing.images.length > 1 && (
             <View style={styles.imageDots}>
               {listing.images.map((_, i) => (
-                <TouchableOpacity key={i} onPress={() => setImageIndex(i)}>
+                <TouchableOpacity key={i} onPress={() => goToImage(i)}>
                   <View style={[styles.dot, i === imageIndex && styles.dotActive]} />
                 </TouchableOpacity>
               ))}
@@ -120,10 +182,12 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, 
             <Text style={styles.nopeText}>PASSE</Text>
           </Animated.View>
 
-          {/* Arrondissement badge */}
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{arrondissement}ème</Text>
-          </View>
+          {/* Arrondissement badge (0 = outside Paris) */}
+          {arrondissement > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{arrondissement}ème</Text>
+            </View>
+          )}
         </View>
 
         {/* Info */}
@@ -219,6 +283,16 @@ const styles = StyleSheet.create({
   imageContainer: {
     flex: 1,
     position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#E8ECF5',
+  },
+  photoStrip: {
+    flexDirection: 'row',
+    height: '100%',
+  },
+  photoSlot: {
+    width: CARD_W,
+    height: '100%',
   },
   image: {
     width: '100%',

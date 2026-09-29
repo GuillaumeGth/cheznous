@@ -19,12 +19,14 @@ WebBrowser.maybeCompleteAuthSession();
 
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
 
 // Isolated so the hook is never called without the required client IDs
 function GoogleButton({ onCredential, disabled }: { onCredential: (token: string) => void; disabled: boolean }) {
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
   });
 
   useEffect(() => {
@@ -45,7 +47,14 @@ function GoogleButton({ onCredential, disabled }: { onCredential: (token: string
   );
 }
 
-const showGoogleBtn = !!GOOGLE_WEB_CLIENT_ID;
+// expo-auth-session throws at render on iOS/Android without that platform's client
+// id — hide the button there rather than crash the login screen.
+const PLATFORM_CLIENT_ID = Platform.select({
+  ios: GOOGLE_IOS_CLIENT_ID,
+  android: GOOGLE_ANDROID_CLIENT_ID,
+  default: GOOGLE_WEB_CLIENT_ID,
+});
+const showGoogleBtn = !!GOOGLE_WEB_CLIENT_ID && !!PLATFORM_CLIENT_ID;
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -71,7 +80,7 @@ export default function LoginScreen() {
         setProfile(profile);
         const groupId = profile.couple_id ?? null;
         setGroupId(groupId);
-        router.replace(groupId ? '/(tabs)' : '/(auth)/invite');
+        router.replace('/(tabs)');
       } else {
         await setDoc(doc(db, 'users', userCred.user.uid), {
           id: userCred.user.uid,
@@ -84,7 +93,7 @@ export default function LoginScreen() {
           notification_prefs: DEFAULT_NOTIFICATION_PREFS,
           created_at: new Date().toISOString(),
         });
-        router.replace('/(auth)/invite');
+        router.replace('/(tabs)');
       }
     } catch (e: any) {
       logError(e, 'auth-google-credential');
@@ -123,9 +132,9 @@ export default function LoginScreen() {
         setProfile(profile);
         const groupId = profile.couple_id ?? null;
         setGroupId(groupId);
-        router.replace(groupId ? '/(tabs)' : '/(auth)/invite');
+        router.replace('/(tabs)');
       } else {
-        router.replace('/(auth)/invite');
+        router.replace('/(tabs)');
       }
     } catch (e: any) {
       logError(e, `auth-${mode}`);

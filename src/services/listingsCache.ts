@@ -7,8 +7,9 @@ import { alog } from '@/lib/adminLogger';
 // Firestore caps the `in` operator at 30 values per query.
 const IN_QUERY_LIMIT = 30;
 
-// Cache key for a single listing doc. Listings are immutable once cached in
-// Firestore, so anything that fetches a listing should seed this key and read
+// Cache key for a single listing doc. Listing content is immutable once cached
+// in Firestore (only `expired_at` may be set later by the server sync — picked
+// up on the next app launch or a pull-to-refresh in the favorites screen), so anything that fetches a listing should seed this key and read
 // from it first — that's what kills the per-like N+1 of getDoc calls.
 export const listingKey = (id: string) => ['listing', id] as const;
 

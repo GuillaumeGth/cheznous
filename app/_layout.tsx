@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { registerPushToken, setupNotificationHandler } from '@/lib/notifications';
 import { DEFAULT_NOTIFICATION_PREFS } from '@/types';
 import { alog } from '@/lib/adminLogger';
+import SharedGroupsSync from '@/components/SharedGroupsSync';
 
 export default function RootLayout() {
   // No store subscription: RootLayout renders a static tree. Setters are read
@@ -63,6 +64,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <StatusBar style="dark" />
+          <SharedGroupsSync />
           <Stack screenOptions={{ headerShown: false }} />
         </GestureHandlerRootView>
       </QueryClientProvider>

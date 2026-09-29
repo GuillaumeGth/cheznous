@@ -42,13 +42,13 @@ Fichier : `src/components/FilterSheet.tsx`
 
 Modal plein écran (pageSheet iOS) pour configurer les filtres et les listes de recherche.
 
-**Props** : `visible`, `onClose`, `members: CoupleMember[]`.
+**Props** : `visible`, `onClose`.
 
 **Fonctionnalités** :
 - Tabs horizontaux : une tab par `SearchList` + bouton `+` pour créer.
 - Création de liste : saisie du nom + sélection des participants (`MemberChip`).
 - Suppression de liste : `×` sur la tab active (Alert de confirmation).
-- Filtres par section : arrondissements (grid chips), loyer max, surface min, nb pièces (steps).
+- Filtres par section (affinent l'alerte Jinka liée) : loyer min/max, surface min/max, nb pièces (steps).
 - Bouton "Réinitialiser" → `DEFAULT_FILTERS`.
 - Bouton "Appliquer" → `syncFilters(coupleId, local, activeTab)` + fermeture.
 
@@ -91,9 +91,9 @@ Fichier : `src/components/MatchCard.tsx`
 
 Carte affichant un match mutuel dans l'onglet favoris.
 
-**Props** : `match: Match`, `onStatusChange: (id, status) => void`.
+**Props** : `match: Match`, `members`, `myUid`.
 
-**Affiche** : image, prix, badge statut coloré, titre, adresse, surface/pièces, date du match, bouton "Voir l'annonce" (`Linking`), bouton "Marquer contacté" (si statut `new`).
+**Affiche** : image, prix, badge statut coloré, titre, adresse, surface/pièces, date du match, bouton "Voir l'annonce" (`Linking`).
 
 **Statuts** :
 | Valeur | Label | Couleur |

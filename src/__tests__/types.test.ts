@@ -1,14 +1,6 @@
 import { DEFAULT_FILTERS, DEFAULT_NOTIFICATION_PREFS } from '@/types';
 
 describe('DEFAULT_FILTERS', () => {
-  it('starts with empty arrondissements', () => {
-    expect(DEFAULT_FILTERS.arrondissements).toEqual([]);
-  });
-
-  it('defaults to rent transaction type', () => {
-    expect(DEFAULT_FILTERS.transaction_type).toBe('rent');
-  });
-
   it('has price_min of 0 (no lower bound)', () => {
     expect(DEFAULT_FILTERS.price_min).toBe(0);
   });

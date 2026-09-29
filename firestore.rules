@@ -1,6 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isMemberOfGroup(groupId) {
+      let g = get(/databases/$(database)/documents/groups/$(groupId)).data;
+      return request.auth != null && (
+        (g.member_ids != null && request.auth.uid in g.member_ids) ||
+        g.user1_id == request.auth.uid ||
+        g.user2_id == request.auth.uid
+      );
+    }
+
     // Lecture pour tout utilisateur connecté (recherche de colocs + abonnements) ;
     // écriture réservée au propriétaire du doc.
     match /users/{userId} {
@@ -16,7 +25,7 @@ service cloud.firestore {
           resource.data.user2_id == request.auth.uid
         );
       }
-      // Any authenticated user can read a group (needed for invite-code lookup) and create one.
+      // Every group is shared by all users: any signed-in user can read and create one.
       allow read, create: if request.auth != null;
       // Existing members can update; a new coloc may join by adding only themselves.
       allow update: if isMember()
@@ -25,6 +34,31 @@ service cloud.firestore {
             && request.auth.uid in request.resource.data.member_ids);
       // Only members can delete the group.
       allow delete: if isMember();
+    }
+
+    // Listing-provider account (Jinka…): status + alerts. The app-wide account
+    // (`users/global/...`) is readable by every signed-in user (alert picker,
+    // admin list). Written only by Cloud Functions (Admin SDK bypasses rules).
+    match /users/{userId}/provider_accounts/{provider} {
+      allow read: if request.auth != null && (request.auth.uid == userId || userId == 'global');
+      allow write: if false;
+    }
+
+    // Provider access tokens — never readable by any client.
+    match /provider_tokens/{tokenId} {
+      allow read, write: if false;
+    }
+
+    // Search list ↔ provider alert link + synced listings, per group.
+    // Filled by Cloud Functions only; members read.
+    match /groups/{groupId}/feeds/{listId} {
+      allow read: if isMemberOfGroup(groupId);
+      allow write: if false;
+
+      match /items/{itemId} {
+        allow read: if isMemberOfGroup(groupId);
+        allow write: if false;
+      }
     }
 
     match /follows/{followId} {
@@ -71,19 +105,11 @@ service cloud.firestore {
 
     // Group chat messages — members of the parent group only.
     match /groups/{groupId}/messages/{messageId} {
-      function isGroupMember() {
-        let g = get(/databases/$(database)/documents/groups/$(groupId)).data;
-        return request.auth != null && (
-          (g.member_ids != null && request.auth.uid in g.member_ids) ||
-          g.user1_id == request.auth.uid ||
-          g.user2_id == request.auth.uid
-        );
-      }
       // Members can read history, react to any message (setReaction merges into
       // other members' docs), and remove messages.
-      allow read, update, delete: if isGroupMember();
+      allow read, update, delete: if isMemberOfGroup(groupId);
       // A member sends as themselves; system messages carry a null user_id.
-      allow create: if isGroupMember()
+      allow create: if isMemberOfGroup(groupId)
         && (request.resource.data.user_id == request.auth.uid
             || request.resource.data.user_id == null);
     }

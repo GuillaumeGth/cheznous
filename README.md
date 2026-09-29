@@ -67,7 +67,7 @@ Un groupe de N personnes lient leurs comptes, swipent indépendamment sur des an
 - **Expo CLI** (via `npx`, pas d'installation globale nécessaire)
 - Un projet **Firebase** (Auth + Firestore + Storage activés) — config dans `src/lib/firebase.ts`, projet `swipemyflat` défini dans `.firebaserc`
 - Pour les notifications push & Google Sign-In : un **dev build** ou un appareil réel (non disponible sur simulateur)
-- Optionnel : une clé API **stream.estate** pour les vraies annonces (sinon, données mock)
+- Pour les vraies annonces : le **plan Blaze** Firebase (Cloud Functions) et un compte **Jinka** avec au moins une alerte (sinon, `EXPO_PUBLIC_LISTINGS_SOURCE=mock`)
 
 ---
 
@@ -79,7 +79,11 @@ cd cheznous
 npm install
 ```
 
-Crée ensuite un fichier `.env` à la racine (voir section suivante).
+Crée ensuite un fichier `.env.local` à la racine (voir section suivante), puis installe les dépendances des Cloud Functions :
+
+```bash
+npm --prefix functions install
+```
 
 > Les dossiers natifs `/ios` et `/android` sont générés (gitignorés). `npm run ios` / `npm run android` les régénèrent au besoin via `expo run:*`.
 
@@ -87,13 +91,16 @@ Crée ensuite un fichier `.env` à la racine (voir section suivante).
 
 ## Variables d'environnement
 
-Crée un fichier `.env` à la racine. Le préfixe `EXPO_PUBLIC_` rend les variables accessibles côté client.
+`.env` (versionné) est un modèle sans valeurs. Copie-le en `.env.local` (ignoré par git, chargé en priorité par Expo) et renseigne les valeurs. Le préfixe `EXPO_PUBLIC_` rend les variables accessibles côté client.
 
 ```bash
-EXPO_PUBLIC_STREAM_ESTATE_KEY=     # Clé API stream.estate ; omettre pour utiliser les données mock
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=  # ID client OAuth web (Google Sign-In)
-EXPO_PUBLIC_FLUXIMMO_KEY=          # Réservé, pas encore branché
+EXPO_PUBLIC_LISTINGS_SOURCE=          # 'mock' = annonces générées localement ; omettre = flux Jinka
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=     # ID client OAuth web (Google Sign-In)
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID= # ID client OAuth Android (optionnel)
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=     # ID client OAuth iOS (sans lui, pas de bouton Google sur iOS)
 ```
+
+Aucune clé Jinka côté app : chaque utilisateur connecte son compte Jinka depuis le Profil, et seul le serveur garde le token.
 
 La configuration Firebase est initialisée dans `src/lib/firebase.ts`. Sur Android, `google-services.json` est requis (référencé dans `app.json`).
 
@@ -194,7 +201,10 @@ Init singleton dans `src/lib/firebase.ts` avec `experimentalForceLongPolling: tr
 | `notes` | `{uid}_{listingId}` | Note d'un membre sur une annonce ; lues ensemble pour tous les membres (`useListingNotes`) |
 | `group_invitations` | auto | Invitations de groupe (pending / accepted / rejected) |
 | `follows` | `{follower_id}_{following_id}` | Relations de suivi entre utilisateurs |
-| `listings` | `{listingId}` | Mises en cache par le premier client qui les fetch ; lues par tous les membres |
+| `listings` | `{listingId}` | Cache partagé lu par likes/matches ; écrit par la sync serveur (`jinka_{adId}`) ou par le client en mode mock ; `expired_at` posé par le serveur |
+| `groups/{id}/feeds` | `{listId}` | Lien recherche ↔ alerte Jinka ; sous-collection `items` = annonces synchronisées. Écriture serveur uniquement |
+| `users/{uid}/provider_accounts` | `jinka` | Compte Jinka (email, statut, alertes). Lecture propriétaire, écriture serveur |
+| `provider_tokens` | `{uid}_jinka` | Token Jinka — aucun accès client |
 | `swipes` | `{uid}_{listId}_{listingId}` | Un doc par utilisateur **par liste de recherche** par annonce |
 | `matches` | `{groupId}_{listId}_{listingId}` | Créé côté client (`couple_id`, `search_list_id`, `listing_id`, `listing`, `matched_at`, `status`) |
 | `matches/{id}/messages` | auto | `ChatMessage` ; chat par match |
@@ -208,19 +218,19 @@ Init singleton dans `src/lib/firebase.ts` avec `experimentalForceLongPolling: tr
 
 ### Pipeline des annonces
 
-`src/services/listingsService.ts` — fetch depuis **stream.estate** si `EXPO_PUBLIC_STREAM_ESTATE_KEY` est défini, sinon fallback sur un générateur mock. Résultats paginés (10 par page). Le hook `useListings` met chaque annonce fetchée en cache dans Firestore (`src/services/listingsCache.ts`) pour que tous les membres voient les mêmes données. La pile pré-charge quand il reste ≤ 3 cartes.
+Les annonces viennent des **alertes Jinka** d'un membre, synchronisées par des **Cloud Functions** (`functions/`) dans `groups/{g}/feeds/{listId}/items`  (uniquement les alertes liées à une recherche) : toutes les 30 min de 8 h à 20 h 30 (page 1, puis suivantes seulement s'il y a du nouveau), puis à 21 h, 0 h, 3 h et 6 h ; le passage de 3 h fait le balayage complet (expirations, purge). Un membre connecte son compte Jinka (Profil) et lie une alerte à une recherche (Filtres → « Source des annonces ») ; tout le groupe swipe ce flux. L'app lit le flux via `ListingsDataSource` (`src/services/listings/`), exclut les annonces déjà swipées, et pré-charge quand il reste ≤ 3 cartes. Détails : [docs/services.md](docs/services.md).
 
-**Champs `SearchFilters`** — convention : `0` signifie « aucune restriction » pour les bornes numériques.
+**Champs `SearchFilters`** — convention : `0` signifie « aucune restriction » pour les bornes numériques. Ils **affinent** l'alerte Jinka côté client.
 
 | Champ | Type | Défaut | Notes |
 |---|---|---|---|
-| `transaction_type` | `'rent' \| 'buy'` | `'rent'` | Mappe vers `transactionType=1/2` dans stream.estate |
-| `arrondissements` | `number[]` | `[]` | Vide = les 20 arrondissements |
-| `price_min` | `number` | `0` | `budgetMin` ; ignoré si 0 |
-| `price_max` | `number` | `0` | `budgetMax` ; ignoré si 0 |
-| `surface_min` | `number` | `0` | `surfaceMin` ; ignoré si 0 |
-| `surface_max` | `number` | `0` | `surfaceMax` ; ignoré si 0 |
-| `rooms_min` | `number` | `0` | `roomMin` ; ignoré si 0 |
+| `transaction_type` | `'rent' \| 'buy'` | `'rent'` | Utilisé par la source mock uniquement (l'alerte Jinka le définit) |
+| `arrondissements` | `number[]` | `[]` | Vide = les 20 arrondissements ; annonces hors Paris = `0` |
+| `price_min` | `number` | `0` | ignoré si 0 |
+| `price_max` | `number` | `0` | ignoré si 0 |
+| `surface_min` | `number` | `0` | ignoré si 0 |
+| `surface_max` | `number` | `0` | ignoré si 0 |
+| `rooms_min` | `number` | `0` | ignoré si 0 |
 | `min_likes` | `number` | `0` | Nb de membres devant liker pour matcher ; `0` = unanimité |
 
 ### Chat
@@ -259,12 +269,13 @@ src/
   components/           Composants UI (cartes, modals, chat, groupes, primitives)
   hooks/                Logique métier (useChat, useSwipeActions, useNotes, useGroups…)
   lib/                  Init Firebase, notifications, upload, query client, logging
-  services/             listingsService, groups, follows, recherche utilisateurs…
+  services/             listings/ (sources d'annonces), providerAccounts, groups, follows…
   stores/              Stores Zustand (authStore, filterStore, listingsStore)
   styles/              StyleSheet par composant (*.styles.ts)
   types/               Types TypeScript partagés (index.ts)
   __tests__/           Tests Jest
 assets/                Icônes, images
+functions/             Cloud Functions : sync Jinka (providers, sync, callables)
 docs/                  Documentation interne
 firestore.rules        Règles de sécurité Firestore
 storage.rules          Règles de sécurité Storage

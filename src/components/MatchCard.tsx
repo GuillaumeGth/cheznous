@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Match } from '@/types';
 import NotesSection from '@/components/NotesSection';
+import ExpiredBadge from '@/components/ExpiredBadge';
 
 type Member = { id: string; display_name: string };
 
@@ -23,12 +24,11 @@ const STATUS_COLORS: Record<Match['status'], string> = {
 
 type Props = {
   match: Match;
-  onStatusChange: (id: string, status: Match['status']) => void;
   members: Member[];
   myUid: string | undefined;
 };
 
-export default function MatchCard({ match, onStatusChange, members, myUid }: Props) {
+export default function MatchCard({ match, members, myUid }: Props) {
   const { listing, status, matched_at } = match;
   if (!listing) return null;
 
@@ -43,6 +43,7 @@ export default function MatchCard({ match, onStatusChange, members, myUid }: Pro
         style={styles.image}
         resizeMode="cover"
       />
+      {!!listing.expired_at && <ExpiredBadge />}
       <View style={styles.content}>
         <View style={styles.row}>
           <Text style={styles.price}>{listing.price.toLocaleString('fr-FR')} €/mois</Text>
@@ -86,14 +87,6 @@ export default function MatchCard({ match, onStatusChange, members, myUid }: Pro
             <Text style={styles.chatBtnText}>Discuter</Text>
           </TouchableOpacity>
         </View>
-        {status === 'new' && (
-          <TouchableOpacity
-            style={styles.statusBtn}
-            onPress={() => onStatusChange(match.id, 'contacted')}
-          >
-            <Text style={styles.statusBtnText}>Marquer contacté</Text>
-          </TouchableOpacity>
-        )}
         <NotesSection listingId={match.listing_id} members={members} myUid={myUid} />
       </View>
     </View>
@@ -198,18 +191,6 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   chatBtnText: {
-    color: '#4A6CF7',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  statusBtn: {
-    backgroundColor: '#F0F4FF',
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  statusBtnText: {
     color: '#4A6CF7',
     fontSize: 13,
     fontWeight: '600',

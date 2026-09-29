@@ -16,11 +16,11 @@ type Listing = {
   rooms: number;          // 1 = studio
   floor: number | null;
   address: string;
-  arrondissement: number; // 1-20
+  arrondissement: number; // 1-20, 0 = hors Paris
   images: string[];       // URLs
   description: string;
   url: string;            // lien vers l'annonce originale
-  source: string;         // 'stream.estate' | 'mock'
+  source: string;         // site d'origine via Jinka ('SeLoger', 'PAP'…) | 'mock'
   has_elevator: boolean;
   has_parking: boolean;
   has_balcony: boolean;
@@ -29,14 +29,11 @@ type Listing = {
   deposit: number;        // dépôt de garantie (€)
   lat: number | null;
   lng: number | null;
+  expired_at?: string | null; // renseigné par la sync serveur quand l'annonce expire
 };
 ```
 
-## TransactionType
-
-```ts
-type TransactionType = 'rent' | 'buy'; // 'rent' = location, 'buy' = achat
-```
+Types fournisseur (`ProviderAccount`, `FeedLink`, `FeedItem`, `ProviderAlert`) : voir [services.md](services.md) et [firebase.md](firebase.md).
 
 ## SearchFilters
 
@@ -45,8 +42,6 @@ Critères de filtrage appliqués aux annonces. Les bornes numériques sont des
 
 ```ts
 type SearchFilters = {
-  transaction_type: TransactionType; // location ou achat
-  arrondissements: number[];         // [] = tous
   price_min: number;                 // prix/loyer min ; 0 = pas de min
   price_max: number;                 // prix/loyer max ; 0 = pas de max
   surface_min: number;               // surface min (m²) ; 0 = pas de min
@@ -55,8 +50,6 @@ type SearchFilters = {
 };
 
 const DEFAULT_FILTERS: SearchFilters = {
-  transaction_type: 'rent',
-  arrondissements: [],
   price_min: 0,
   price_max: 0,
   surface_min: 0,
@@ -65,9 +58,9 @@ const DEFAULT_FILTERS: SearchFilters = {
 };
 ```
 
-> **Sémantique du prix** : en location, `price_min`/`price_max` sont un **loyer
-> mensuel** (€/mois) ; en achat, un **prix de vente total** (€). L'UI adapte le
-> libellé (« Loyer » vs « Prix ») selon `transaction_type`.
+> Ces filtres **affinent** l'alerte Jinka liée, qui définit le reste de la
+> recherche (type de transaction, localisation…). `price_min`/`price_max` sont
+> un loyer mensuel (€/mois).
 
 ## SearchList
 

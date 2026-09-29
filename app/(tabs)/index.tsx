@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, ActivityIndicator, Image,
+  View, Text, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { useFilterStore } from '@/stores/filterStore';
 import { useListings } from '@/hooks/useListings';
+import { useFeedLink } from '@/hooks/useFeedLink';
+import { getListingsDataSource } from '@/services/listings';
+import { APP_TOKEN_EXPIRED_MESSAGE } from '@/services/providerAccounts';
 import { useGroup } from '@/hooks/useGroup';
 import { useNewListingsNotify } from '@/hooks/useNewListingsNotify';
 import { useSwipeActions } from '@/hooks/useSwipeActions';
@@ -29,21 +32,31 @@ const ACTION_GRADIENT = ['#4A6CF7', '#A855F7'] as const;
 const NOTE_GRADIENT = ['#5B4FE9', '#A855F7'] as const;
 const SHARE_GRADIENT = ['#4A6CF7', '#6A8BFF'] as const;
 const SAFE_EDGES = ['top'] as const;
+// Feed (Jinka via Cloud Functions) needs a linked alert; the local mock doesn't.
+const NEEDS_FEED_LINK = getListingsDataSource().kind === 'feed';
 
 type ActiveModal =
-  | { type: 'filter'; adding?: boolean }
+  | { type: 'filter' }
   | { type: 'note' }
   | { type: 'detail'; listing: Listing };
 
 export default function SwipeScreen() {
   const uid = useAuthStore((s) => s.firebaseUser?.uid);
+  const groupId = useAuthStore((s) => s.groupId);
   const displayName = useAuthStore((s) => s.profile?.display_name);
   const myPhoto = useAuthStore((s) => s.profile?.photo_url);
-  const searchLists = useFilterStore((s) => s.searchLists);
+  const hasSearch = useFilterStore((s) => s.searchLists.length > 0);
   const activeListId = useFilterStore((s) => s.activeListId);
-  const hasSearch = searchLists.length > 0;
 
-  const { stack, isLoading, loadMore, refresh, pop, pushBack, filtersKey } = useListings();
+  const { stack, isLoading, error, loadMore, refresh, pop, pushBack, queryKey } = useListings();
+  const feedLink = useFeedLink(NEEDS_FEED_LINK ? groupId : null, NEEDS_FEED_LINK ? activeListId : null);
+  const isUnlinked = NEEDS_FEED_LINK && feedLink === null;
+  const canLoad = hasSearch && (!NEEDS_FEED_LINK || !!feedLink);
+  // Reload when the list's source changes (a member links another alert) or its
+  // first sync lands — not on every periodic sync, which would reset the stack.
+  const feedKey = feedLink
+    ? `${feedLink.owner_id}|${feedLink.alert_id}|${feedLink.last_sync_at ? 'synced' : 'pending'}`
+    : '';
   const { group, memberProfiles } = useGroup();
 
   const groupRef = useRef(group);
@@ -66,23 +79,17 @@ export default function SwipeScreen() {
 
   useNewListingsNotify();
 
-  useEffect(() => { if (hasSearch) refresh(); }, [hasSearch, refresh]);
+  useEffect(() => { if (canLoad) refresh(); }, [canLoad, refresh]);
 
-  const filterMountedRef = useRef(false);
+  const queryMountedRef = useRef(false);
   useEffect(() => {
-    if (!filterMountedRef.current) { filterMountedRef.current = true; return; }
-    if (hasSearch) refresh(true);
-  }, [filtersKey, hasSearch, refresh]);
+    if (!queryMountedRef.current) { queryMountedRef.current = true; return; }
+    if (canLoad) refresh(true);
+  }, [queryKey, feedKey, canLoad, refresh]);
 
   useEffect(() => {
-    if (hasSearch && stack.length <= 3 && !isLoading) loadMore();
-  }, [hasSearch, stack.length, isLoading, loadMore]);
-
-  const activeList = useMemo(
-    () => searchLists.find((l) => l.id === activeListId),
-    [searchLists, activeListId],
-  );
-  const activeListCover = activeList?.cover_photo_url ?? null;
+    if (canLoad && stack.length <= 3 && !isLoading) loadMore();
+  }, [canLoad, stack.length, isLoading, loadMore]);
 
   const members = useMemo<GroupMember[]>(() => {
     const result: GroupMember[] = [];
@@ -119,7 +126,7 @@ export default function SwipeScreen() {
   const handleToastHide = useCallback(() => setToast(null), []);
   const handleNotePress = useCallback(() => setModal({ type: 'note' }), []);
   const handleFilterPress = useCallback(() => setModal({ type: 'filter' }), []);
-  const handleCreateSearch = useCallback(() => setModal({ type: 'filter', adding: true }), []);
+  const handleReload = useCallback(() => refresh(true), [refresh]);
   const handleModalClose = useCallback(() => setModal(null), []);
 
   const hasColocs = (group?.member_ids?.length ?? 0) > 1;
@@ -129,14 +136,9 @@ export default function SwipeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitles}>
-          {activeListCover && (
-            <View style={styles.groupAvatar}>
-              <Image source={{ uri: activeListCover }} style={styles.groupAvatarImage} />
-            </View>
-          )}
           <View style={styles.headerText}>
             <View style={styles.titleRow}>
-              <Text style={styles.appName} numberOfLines={1}>{group?.name ?? 'Chez Nous'}</Text>
+              <Text style={styles.appName} numberOfLines={1}>Explorer</Text>
               {hasColocs && <MemberAvatars members={members} />}
             </View>
             {group && !hasColocs && (
@@ -158,31 +160,39 @@ export default function SwipeScreen() {
       <View style={styles.cardsArea}>
         {!hasSearch ? (
           <View style={styles.centered}>
-            <Ionicons name="search-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>Aucune recherche</Text>
-            <Text style={styles.emptyDesc}>Crée une recherche pour commencer à swiper</Text>
-            <TouchableOpacity onPress={handleCreateSearch}>
-              <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
-                <Text style={styles.reloadText}>Créer une recherche</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            <ActivityIndicator size="large" color="#4A6CF7" />
           </View>
-        ) : isLoading && stack.length === 0 ? (
+        ) : isUnlinked ? (
+          <EmptyState
+            icon="link-outline"
+            title="Aucune alerte liée"
+            desc="Lie une alerte Jinka à cette recherche pour voir ses annonces"
+            actionLabel="Choisir une alerte"
+            onAction={handleFilterPress}
+          />
+        ) : error && stack.length === 0 ? (
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="Oups"
+            desc={error}
+            actionLabel="Réessayer"
+            onAction={handleReload}
+          />
+        ) : (isLoading || (NEEDS_FEED_LINK && feedLink === undefined)) && stack.length === 0 ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color="#4A6CF7" />
             <Text style={styles.loadingText}>Chargement des annonces…</Text>
           </View>
         ) : stack.length === 0 ? (
-          <View style={styles.centered}>
-            <Ionicons name="business-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>Plus d'annonces</Text>
-            <Text style={styles.emptyDesc}>Essaie d'élargir tes filtres</Text>
-            <TouchableOpacity onPress={() => refresh(true)}>
-              <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
-                <Text style={styles.reloadText}>Recharger</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="business-outline"
+            title="Plus d'annonces"
+            desc={feedLink?.status === 'expired'
+              ? APP_TOKEN_EXPIRED_MESSAGE
+              : 'Élargis tes filtres ou attends la prochaine synchro Jinka'}
+            actionLabel="Recharger"
+            onAction={handleReload}
+          />
         ) : (
           visibleCards.map(({ listing, idx, isTop }) => (
             <SwipeCard
@@ -236,8 +246,6 @@ export default function SwipeScreen() {
       <FilterSheet
         visible={modal?.type === 'filter'}
         onClose={handleModalClose}
-        members={members}
-        initialAdding={modal?.type === 'filter' ? modal.adding : false}
       />
       <ListingDetailSheet
         listing={modal?.type === 'detail' ? modal.listing : null}
@@ -259,3 +267,27 @@ export default function SwipeScreen() {
     </SafeAreaView>
   );
 }
+
+type EmptyStateProps = {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  title: string;
+  desc: string;
+  actionLabel: string;
+  onAction: () => void;
+};
+
+// Centered placeholder of the cards area (no search, no alert, error, empty).
+const EmptyState = React.memo(function EmptyState({ icon, title, desc, actionLabel, onAction }: EmptyStateProps) {
+  return (
+    <View style={styles.centered}>
+      <Ionicons name={icon} size={64} color="#ccc" />
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyDesc}>{desc}</Text>
+      <TouchableOpacity onPress={onAction}>
+        <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
+          <Text style={styles.reloadText}>{actionLabel}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
+  );
+});

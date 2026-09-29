@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  collection, query, where, onSnapshot, getDocsFromServer, QueryDocumentSnapshot,
+} from 'firebase/firestore';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
+import { queryClient } from '@/lib/queryClient';
 import { Listing } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchListingsByIds } from '@/services/listingsCache';
@@ -21,6 +24,13 @@ type RawSwipe = {
   created_at: string;
 };
 
+const swipesQuery = (uid: string) => query(collection(db, 'swipes'), where('user_id', '==', uid));
+
+const toRightSwipes = (docs: QueryDocumentSnapshot[]): RawSwipe[] =>
+  docs
+    .map((d) => d.data() as RawSwipe & { direction: string })
+    .filter((s) => s.direction === 'right');
+
 export function useLikes() {
   const uid = useAuthStore((s) => s.firebaseUser?.uid);
   const [swipes, setSwipes] = useState<RawSwipe[]>([]);
@@ -36,13 +46,10 @@ export function useLikes() {
       return;
     }
 
-    const q = query(collection(db, 'swipes'), where('user_id', '==', uid));
     const unsub = onSnapshot(
-      q,
+      swipesQuery(uid),
       (snap) => {
-        const rightSwipes = snap.docs
-          .map((d) => d.data() as RawSwipe & { direction: string })
-          .filter((s) => s.direction === 'right');
+        const rightSwipes = toRightSwipes(snap.docs);
         alog('Firestore:onSnapshot swipes (useLikes)', { uid, totalSwipes: snap.docs.length, rightSwipes: rightSwipes.length });
         setSwipes(rightSwipes);
         setSwipesLoading(false);
@@ -81,5 +88,18 @@ export function useLikes() {
   }, [swipes, listingsById]);
 
   const isLoading = swipesLoading || (listingIds.length > 0 && listingsLoading);
-  return { likes, isLoading };
+
+  // Pull-to-refresh: re-read the swipes from the server and drop the cached
+  // listing docs so they're fetched again (e.g. an ad expired since caching).
+  const refresh = useCallback(async () => {
+    const currentUid = useAuthStore.getState().firebaseUser?.uid;
+    if (!currentUid) return;
+    alog('Firestore:getDocsFromServer swipes (useLikes refresh)', { uid: currentUid });
+    const snap = await getDocsFromServer(swipesQuery(currentUid));
+    queryClient.removeQueries({ queryKey: ['listing'] });
+    await queryClient.invalidateQueries({ queryKey: ['listings'] });
+    setSwipes(toRightSwipes(snap.docs));
+  }, []);
+
+  return { likes, isLoading, refresh };
 }

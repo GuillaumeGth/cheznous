@@ -3,6 +3,7 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import { Like } from '@/hooks/useLikes';
 import NotesSection from '@/components/NotesSection';
+import ExpiredBadge from '@/components/ExpiredBadge';
 
 type Member = { id: string; display_name: string };
 
@@ -23,6 +24,7 @@ export default function LikeCard({ like, members, myUid }: Props) {
   return (
     <View style={styles.card}>
       <Image source={{ uri: listing.images[0] }} style={styles.image} resizeMode="cover" />
+      {!!listing.expired_at && <ExpiredBadge />}
       <View style={styles.content}>
         <View style={styles.row}>
           <Text style={styles.price}>{listing.price.toLocaleString('fr-FR')} €/mois</Text>
