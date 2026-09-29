@@ -120,10 +120,12 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, 
             <Text style={styles.nopeText}>PASSE</Text>
           </Animated.View>
 
-          {/* Arrondissement badge */}
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{arrondissement}ème</Text>
-          </View>
+          {/* Arrondissement badge (0 = outside Paris) */}
+          {arrondissement > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{arrondissement}ème</Text>
+            </View>
+          )}
         </View>
 
         {/* Info */}

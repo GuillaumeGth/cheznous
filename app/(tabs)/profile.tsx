@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, Switch, Image, ActivityIndicator,
@@ -18,6 +18,7 @@ import { registerPushToken } from '@/lib/notifications';
 import PendingInvitationBanner from '@/components/PendingInvitationBanner';
 import Toast, { ToastType } from '@/components/Toast';
 import ConfirmSheet from '@/components/ConfirmSheet';
+import ProviderAccountSection from '@/components/ProviderAccountSection';
 import { NotificationPrefs, DEFAULT_NOTIFICATION_PREFS } from '@/types';
 
 export default function ProfileScreen() {
@@ -36,6 +37,10 @@ export default function ProfileScreen() {
   const colocCount = Math.max(0, (group?.member_ids?.length ?? 1) - 1);
 
   const showToast = (message: string, type: ToastType = 'info') => setToast({ message, type });
+  const handleProviderMessage = useCallback(
+    (message: string, type: ToastType) => setToast({ message, type }),
+    [],
+  );
 
   const changePhoto = async () => {
     if (!firebaseUser || !profile) return;
@@ -173,6 +178,12 @@ export default function ProfileScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#ccc" />
           </TouchableOpacity>
+        </View>
+
+        {/* Source des annonces */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Annonces</Text>
+          <ProviderAccountSection onMessage={handleProviderMessage} />
         </View>
 
         {/* Notifications */}

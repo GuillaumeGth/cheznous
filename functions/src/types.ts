@@ -1,0 +1,82 @@
+// Server-side types. `Listing` mirrors `src/types/index.ts` in the app — keep
+// both in sync (the functions package is built separately and can't import it).
+
+export type Listing = {
+  id: string;
+  title: string;
+  price: number;
+  charges: number;
+  surface: number;
+  rooms: number;
+  floor: number | null;
+  address: string;
+  arrondissement: number;
+  images: string[];
+  description: string;
+  url: string;
+  source: string;
+  has_elevator: boolean;
+  has_parking: boolean;
+  has_balcony: boolean;
+  has_terrace: boolean;
+  available_from: string;
+  deposit: number;
+  lat: number | null;
+  lng: number | null;
+  /** Set once the provider reports the ad expired/removed; null while live. */
+  expired_at: string | null;
+};
+
+export type ProviderId = 'jinka';
+
+export type ProviderAlert = {
+  id: string;
+  name: string;
+};
+
+export type SyncStatus = 'ok' | 'expired' | 'error';
+
+/** `users/{uid}/provider_accounts/{provider}` — readable by its owner only. */
+export type ProviderAccount = {
+  user_id: string;
+  provider: ProviderId;
+  email: string;
+  status: SyncStatus;
+  alerts: ProviderAlert[];
+  connected_at: string;
+  last_sync_at: string | null;
+  last_error: string | null;
+};
+
+/**
+ * `groups/{groupId}/feeds/{listId}` — links a search list to one provider
+ * alert. Readable by group members, written by the server only. Feed items
+ * live in the `items` subcollection.
+ */
+export type FeedLink = {
+  group_id: string;
+  list_id: string;
+  provider: ProviderId;
+  owner_id: string;
+  alert_id: string;
+  alert_name: string;
+  linked_at: string;
+  status: SyncStatus;
+  last_sync_at: string | null;
+};
+
+/** `groups/{groupId}/feeds/{listId}/items/{listingId}` */
+export type FeedItem = Listing & {
+  /** First time the server saw this listing in this feed (pagination key). */
+  added_at: string;
+  /** Last sync that returned it. */
+  fetched_at: string;
+  /** `expired_at === null` — denormalised so the app can query live items only. */
+  active: boolean;
+};
+
+/** Minimal view of a `groups/{id}` doc the server needs. */
+export type GroupSummary = {
+  member_ids: string[];
+  list_ids: string[];
+};

@@ -16,11 +16,11 @@ type Listing = {
   rooms: number;          // 1 = studio
   floor: number | null;
   address: string;
-  arrondissement: number; // 1-20
+  arrondissement: number; // 1-20, 0 = hors Paris
   images: string[];       // URLs
   description: string;
   url: string;            // lien vers l'annonce originale
-  source: string;         // 'stream.estate' | 'mock'
+  source: string;         // site d'origine via Jinka ('SeLoger', 'PAP'…) | 'mock'
   has_elevator: boolean;
   has_parking: boolean;
   has_balcony: boolean;
@@ -29,8 +29,11 @@ type Listing = {
   deposit: number;        // dépôt de garantie (€)
   lat: number | null;
   lng: number | null;
+  expired_at?: string | null; // renseigné par la sync serveur quand l'annonce expire
 };
 ```
+
+Types fournisseur (`ProviderAccount`, `FeedLink`, `FeedItem`, `ProviderAlert`) : voir [services.md](services.md) et [firebase.md](firebase.md).
 
 ## TransactionType
 

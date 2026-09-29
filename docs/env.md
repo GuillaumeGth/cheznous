@@ -5,14 +5,14 @@
 Le fichier `.env` (à la racine, ignoré par git) doit contenir :
 
 ```env
-EXPO_PUBLIC_STREAM_ESTATE_KEY=    # clé API stream.estate ; omis = mock data
+EXPO_PUBLIC_LISTINGS_SOURCE=      # 'mock' = annonces générées localement ; omis = flux Jinka (Cloud Functions)
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID= # Google OAuth web client ID (console GCP)
 EXPO_PUBLIC_FLUXIMMO_KEY=         # réservé, non câblé
 ```
 
 Le préfixe `EXPO_PUBLIC_` rend les variables accessibles côté client via `process.env.EXPO_PUBLIC_*`.
 
-**Sans `STREAM_ESTATE_KEY`**, le mock generator est utilisé automatiquement (aucune erreur).
+Aucune clé Jinka côté app : chaque utilisateur connecte son compte depuis le Profil, le token reste côté serveur.
 
 **Sans `GOOGLE_WEB_CLIENT_ID`**, le bouton Google sur l'écran de login est désactivé (`request` sera `null`).
 
@@ -65,9 +65,14 @@ npx expo start --web     # Web (limité)
 
 firebase deploy --only firestore:rules    # déployer les règles
 firebase deploy --only firestore:indexes  # déployer les indexes
+firebase deploy --only functions          # déployer les Cloud Functions (plan Blaze requis)
+
+npm test                                  # tests de l'app (Jest)
+npm --prefix functions test               # tests des Cloud Functions
+npm --prefix functions run serve          # émulateurs functions + firestore (Node ≥ 22.12)
 ```
 
-Il n'y a pas de script de lint ni de test configuré.
+Il n'y a pas de script de lint configuré.
 
 ---
 

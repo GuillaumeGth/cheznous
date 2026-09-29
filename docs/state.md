@@ -64,18 +64,24 @@ const { couple, memberProfiles } = useCouple();
 
 ### useListings (`src/hooks/useListings.ts`)
 
-- Gère le **stack** de cartes (tableau local, pas de Firestore realtime).
-- `refresh(force?)` : reset à la page 1 et relance le fetch. Throttlé à 30 min (même filtres) sauf si `force=true`.
-- `loadMore()` : fetch la page suivante et ajoute au stack.
-- `pop()` : retire le premier élément du stack (appelé au swipe).
-- Cache chaque listing fetchée dans `listings/{id}` (Firestore) via `setDoc merge:true`.
-- Expose `filtersKey` (JSON des filtres) pour que l'écran swipe détecte les changements.
+Wrapper du store `listingsStore` (singleton module, survit au démontage de l'écran).
+
+- `refresh(force?)` : repart de la première page. Throttlé 30 min pour une même clé `groupId|listId|filters`, sauf `force=true` ou erreur précédente.
+- `loadMore()` : page suivante via `getListingsDataSource()` (curseur opaque) ; exclut les annonces déjà swipées dans la recherche.
+- `error` : `{ code, message }` ; bloque l'auto-pagination jusqu'au prochain refresh.
+- `queryKey` : change avec le groupe, la recherche active ou ses filtres → l'écran swipe force un refresh.
+- `refreshListingsIfActive(listId)` : recharge après liaison d'une alerte (appelé par `FeedSourcePicker`).
 
 ```ts
-const { stack, isLoading, loadMore, refresh, pop, filtersKey } = useListings();
+const { stack, isLoading, error, loadMore, refresh, pop, pushBack, queryKey } = useListings();
 ```
 
-**Anti-race** : un `isLoadingRef` (ref, pas state) sert de garde mutex pour éviter les appels concurrents.
+Voir [services.md](services.md) pour les sources (flux Jinka / mock).
+
+### useFeedLink / useProviderAccount
+
+- `useFeedLink(groupId, listId)` : `onSnapshot` sur `groups/{g}/feeds/{listId}` → `FeedLink | null | undefined` (chargement).
+- `useProviderAccount()` : `onSnapshot` sur `users/{uid}/provider_accounts/jinka` → `ProviderAccount | null | undefined`.
 
 ### useMatches (`src/hooks/useMatches.ts`)
 
@@ -100,7 +106,7 @@ const { likes, isLoading } = useLikes();
 ### useNewListingsNotify (`src/hooks/useNewListingsNotify.ts`)
 
 - S'abonne aux événements `AppState` (foreground / background).
-- Au retour en foreground, query Firestore pour les listings ajoutés depuis le dernier check avec `fetched_at >= since`.
-- Filtre les résultats avec les filtres courants.
+- Au retour en foreground, lit les items du flux de la **recherche active** ajoutés depuis le dernier check (`added_at >= since`).
+- Ignore les items expirés et applique les filtres courants (`matchesFilters`).
 - Si des annonces correspondent, déclenche une notification locale via `scheduleNewListingsNotification`.
 - N'opère que si `notify_on_new_listings` est activé dans le profil.

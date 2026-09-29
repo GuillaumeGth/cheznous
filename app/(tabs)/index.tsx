@@ -8,6 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
 import { useFilterStore } from '@/stores/filterStore';
 import { useListings } from '@/hooks/useListings';
+import { useFeedLink } from '@/hooks/useFeedLink';
+import { getListingsDataSource } from '@/services/listings';
 import { useGroup } from '@/hooks/useGroup';
 import { useNewListingsNotify } from '@/hooks/useNewListingsNotify';
 import { useSwipeActions } from '@/hooks/useSwipeActions';
@@ -29,6 +31,8 @@ const ACTION_GRADIENT = ['#4A6CF7', '#A855F7'] as const;
 const NOTE_GRADIENT = ['#5B4FE9', '#A855F7'] as const;
 const SHARE_GRADIENT = ['#4A6CF7', '#6A8BFF'] as const;
 const SAFE_EDGES = ['top'] as const;
+// Feed (Jinka via Cloud Functions) needs a linked alert; the local mock doesn't.
+const NEEDS_FEED_LINK = getListingsDataSource().kind === 'feed';
 
 type ActiveModal =
   | { type: 'filter'; adding?: boolean }
@@ -37,13 +41,22 @@ type ActiveModal =
 
 export default function SwipeScreen() {
   const uid = useAuthStore((s) => s.firebaseUser?.uid);
+  const groupId = useAuthStore((s) => s.groupId);
   const displayName = useAuthStore((s) => s.profile?.display_name);
   const myPhoto = useAuthStore((s) => s.profile?.photo_url);
   const searchLists = useFilterStore((s) => s.searchLists);
   const activeListId = useFilterStore((s) => s.activeListId);
   const hasSearch = searchLists.length > 0;
 
-  const { stack, isLoading, loadMore, refresh, pop, pushBack, filtersKey } = useListings();
+  const { stack, isLoading, error, loadMore, refresh, pop, pushBack, queryKey } = useListings();
+  const feedLink = useFeedLink(NEEDS_FEED_LINK ? groupId : null, NEEDS_FEED_LINK ? activeListId : null);
+  const isUnlinked = NEEDS_FEED_LINK && feedLink === null;
+  const canLoad = hasSearch && (!NEEDS_FEED_LINK || !!feedLink);
+  // Reload when the list's source changes (a member links another alert) or its
+  // first sync lands — not on every periodic sync, which would reset the stack.
+  const feedKey = feedLink
+    ? `${feedLink.owner_id}|${feedLink.alert_id}|${feedLink.last_sync_at ? 'synced' : 'pending'}`
+    : '';
   const { group, memberProfiles } = useGroup();
 
   const groupRef = useRef(group);
@@ -66,17 +79,17 @@ export default function SwipeScreen() {
 
   useNewListingsNotify();
 
-  useEffect(() => { if (hasSearch) refresh(); }, [hasSearch, refresh]);
+  useEffect(() => { if (canLoad) refresh(); }, [canLoad, refresh]);
 
-  const filterMountedRef = useRef(false);
+  const queryMountedRef = useRef(false);
   useEffect(() => {
-    if (!filterMountedRef.current) { filterMountedRef.current = true; return; }
-    if (hasSearch) refresh(true);
-  }, [filtersKey, hasSearch, refresh]);
+    if (!queryMountedRef.current) { queryMountedRef.current = true; return; }
+    if (canLoad) refresh(true);
+  }, [queryKey, feedKey, canLoad, refresh]);
 
   useEffect(() => {
-    if (hasSearch && stack.length <= 3 && !isLoading) loadMore();
-  }, [hasSearch, stack.length, isLoading, loadMore]);
+    if (canLoad && stack.length <= 3 && !isLoading) loadMore();
+  }, [canLoad, stack.length, isLoading, loadMore]);
 
   const activeList = useMemo(
     () => searchLists.find((l) => l.id === activeListId),
@@ -120,6 +133,7 @@ export default function SwipeScreen() {
   const handleNotePress = useCallback(() => setModal({ type: 'note' }), []);
   const handleFilterPress = useCallback(() => setModal({ type: 'filter' }), []);
   const handleCreateSearch = useCallback(() => setModal({ type: 'filter', adding: true }), []);
+  const handleReload = useCallback(() => refresh(true), [refresh]);
   const handleModalClose = useCallback(() => setModal(null), []);
 
   const hasColocs = (group?.member_ids?.length ?? 0) > 1;
@@ -167,7 +181,29 @@ export default function SwipeScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        ) : isLoading && stack.length === 0 ? (
+        ) : isUnlinked ? (
+          <View style={styles.centered}>
+            <Ionicons name="link-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyTitle}>Aucune alerte liée</Text>
+            <Text style={styles.emptyDesc}>Lie une alerte Jinka à cette recherche pour voir ses annonces</Text>
+            <TouchableOpacity onPress={handleFilterPress}>
+              <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
+                <Text style={styles.reloadText}>Choisir une alerte</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        ) : error && stack.length === 0 ? (
+          <View style={styles.centered}>
+            <Ionicons name="cloud-offline-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyTitle}>Oups</Text>
+            <Text style={styles.emptyDesc}>{error.message}</Text>
+            <TouchableOpacity onPress={handleReload}>
+              <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
+                <Text style={styles.reloadText}>Réessayer</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        ) : (isLoading || (NEEDS_FEED_LINK && feedLink === undefined)) && stack.length === 0 ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color="#4A6CF7" />
             <Text style={styles.loadingText}>Chargement des annonces…</Text>
@@ -176,8 +212,12 @@ export default function SwipeScreen() {
           <View style={styles.centered}>
             <Ionicons name="business-outline" size={64} color="#ccc" />
             <Text style={styles.emptyTitle}>Plus d'annonces</Text>
-            <Text style={styles.emptyDesc}>Essaie d'élargir tes filtres</Text>
-            <TouchableOpacity onPress={() => refresh(true)}>
+            <Text style={styles.emptyDesc}>
+              {feedLink?.status === 'expired'
+                ? 'La session Jinka liée a expiré : reconnecte-la dans le profil'
+                : "Élargis tes filtres ou attends la prochaine synchro Jinka"}
+            </Text>
+            <TouchableOpacity onPress={handleReload}>
               <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
                 <Text style={styles.reloadText}>Recharger</Text>
               </LinearGradient>

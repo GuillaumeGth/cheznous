@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { initializeAuth, getAuth, GoogleAuthProvider, type Persistence } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // getReactNativePersistence is in the RN build of firebase/auth but the tsc types resolve
@@ -42,5 +43,7 @@ function getAuthInstance() {
 export const db = getDb();
 export const auth = getAuthInstance();
 export const storage = getStorage(app);
+// Same region as the Cloud Functions (functions/src/index.ts).
+export const functions = getFunctions(app, 'europe-west1');
 export { GoogleAuthProvider };
 export default app;

@@ -20,6 +20,8 @@ export type Listing = {
   deposit: number;
   lat: number | null;
   lng: number | null;
+  /** Set by the server sync once the provider reports the ad gone. */
+  expired_at?: string | null;
 };
 
 export type SwipeDirection = 'left' | 'right';
@@ -175,4 +177,50 @@ export type UserProfile = {
   photo_url: string | null;
   notification_prefs: NotificationPrefs;
   created_at: string;
+};
+
+// --- Listing providers (Jinka…) — written by Cloud Functions only -----------
+// Mirrors `functions/src/types.ts`.
+
+export type ProviderId = 'jinka';
+
+export type ProviderAlert = {
+  id: string;
+  name: string;
+};
+
+export type ProviderSyncStatus = 'ok' | 'expired' | 'error';
+
+// Firestore: `users/{uid}/provider_accounts/{provider}` (owner read-only).
+// The token lives server-side; the password is never stored.
+export type ProviderAccount = {
+  user_id: string;
+  provider: ProviderId;
+  email: string;
+  status: ProviderSyncStatus;
+  alerts: ProviderAlert[];
+  connected_at: string;
+  last_sync_at: string | null;
+  last_error: string | null;
+};
+
+// Firestore: `groups/{groupId}/feeds/{listId}` — which provider alert feeds a
+// search list. Its synced listings are in the `items` subcollection.
+export type FeedLink = {
+  group_id: string;
+  list_id: string;
+  provider: ProviderId;
+  owner_id: string;
+  alert_id: string;
+  alert_name: string;
+  linked_at: string;
+  status: ProviderSyncStatus;
+  last_sync_at: string | null;
+};
+
+// Firestore: `groups/{groupId}/feeds/{listId}/items/{listingId}`
+export type FeedItem = Listing & {
+  added_at: string;
+  fetched_at: string;
+  active: boolean;
 };

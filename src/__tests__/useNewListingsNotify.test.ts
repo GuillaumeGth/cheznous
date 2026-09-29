@@ -2,6 +2,8 @@
 const appStateCapture: { callback?: (state: string) => void } = {};
 
 jest.mock('react-native', () => ({
+  // jest-expo's setup reads Platform while installing its fetch polyfill.
+  Platform: { OS: 'ios', select: (o: Record<string, unknown>) => o.ios ?? o.default },
   AppState: {
     addEventListener: jest.fn((_event: string, cb: (s: string) => void) => {
       appStateCapture.callback = cb;
@@ -71,8 +73,9 @@ beforeEach(() => {
   appStateCapture.callback = undefined;
   mockAuthGetState.mockReturnValue({
     profile: { notification_prefs: { notify_on_new_listings: true } },
+    groupId: 'g1',
   });
-  mockFilterGetState.mockReturnValue({ filters: { ...DEFAULT_FILTERS } });
+  mockFilterGetState.mockReturnValue({ filters: { ...DEFAULT_FILTERS }, activeListId: 'l1' });
 });
 
 describe('useNewListingsNotify — notification gate', () => {
@@ -102,6 +105,28 @@ describe('useNewListingsNotify — notification gate', () => {
     expect(mockSchedule).toHaveBeenCalledWith(1);
   });
 
+  it('does nothing without an active group/search list', async () => {
+    mockAuthGetState.mockReturnValue({
+      profile: { notification_prefs: { notify_on_new_listings: true } },
+      groupId: null,
+    });
+    renderHook();
+    await triggerActive();
+    expect(mockGetDocs).not.toHaveBeenCalled();
+  });
+
+  it('ignores feed items that already expired', async () => {
+    mockGetDocs.mockResolvedValue({
+      docs: [
+        makeDoc({ arrondissement: 5, price: 1500, surface: 40, rooms: 2, active: false }),
+        makeDoc({ arrondissement: 5, price: 1500, surface: 40, rooms: 2, active: true }),
+      ],
+    } as any);
+    renderHook();
+    await triggerActive();
+    expect(mockSchedule).toHaveBeenCalledWith(1);
+  });
+
   it('does not schedule when no listings match', async () => {
     mockGetDocs.mockResolvedValue({ docs: [] } as any);
     renderHook();
@@ -113,6 +138,7 @@ describe('useNewListingsNotify — notification gate', () => {
 describe('useNewListingsNotify — filter: arrondissements', () => {
   it('keeps only listings in the selected arrondissements', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, arrondissements: [10, 11] },
     });
     mockGetDocs.mockResolvedValue({
@@ -139,6 +165,7 @@ describe('useNewListingsNotify — filter: arrondissements', () => {
 describe('useNewListingsNotify — filter: price range', () => {
   it('price_min=0 accepts listings of any price (no lower bound)', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, price_min: 0 },
     });
     mockGetDocs.mockResolvedValue({
@@ -151,6 +178,7 @@ describe('useNewListingsNotify — filter: price range', () => {
 
   it('price_max=0 accepts listings of any price (no upper bound)', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, price_max: 0 },
     });
     mockGetDocs.mockResolvedValue({
@@ -163,6 +191,7 @@ describe('useNewListingsNotify — filter: price range', () => {
 
   it('filters by price_min: excludes below, keeps at and above', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, price_min: 1500 },
     });
     mockGetDocs.mockResolvedValue({
@@ -179,6 +208,7 @@ describe('useNewListingsNotify — filter: price range', () => {
 
   it('filters by price_max: keeps at and below, excludes above', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, price_max: 1500 },
     });
     mockGetDocs.mockResolvedValue({
@@ -195,6 +225,7 @@ describe('useNewListingsNotify — filter: price range', () => {
 
   it('filters by price range (min and max together)', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, price_min: 1000, price_max: 2000 },
     });
     mockGetDocs.mockResolvedValue({
@@ -231,6 +262,7 @@ describe('useNewListingsNotify — filter: surface range', () => {
 
   it('filters by surface_min: excludes below, keeps at and above', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, surface_min: 40 },
     });
     mockGetDocs.mockResolvedValue({
@@ -247,6 +279,7 @@ describe('useNewListingsNotify — filter: surface range', () => {
 
   it('filters by surface_max: keeps at and below, excludes above', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, surface_max: 50 },
     });
     mockGetDocs.mockResolvedValue({
@@ -263,6 +296,7 @@ describe('useNewListingsNotify — filter: surface range', () => {
 
   it('filters by surface range (min and max together)', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, surface_min: 30, surface_max: 60 },
     });
     mockGetDocs.mockResolvedValue({
@@ -290,6 +324,7 @@ describe('useNewListingsNotify — filter: rooms_min', () => {
 
   it('filters by rooms_min', async () => {
     mockFilterGetState.mockReturnValue({
+      activeListId: 'l1',
       filters: { ...DEFAULT_FILTERS, rooms_min: 3 },
     });
     mockGetDocs.mockResolvedValue({

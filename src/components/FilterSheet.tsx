@@ -9,6 +9,7 @@ import { GroupMember, SearchFilters, TransactionType, DEFAULT_FILTERS } from '@/
 import { useFilterStore } from '@/stores/filterStore';
 import { useAuthStore } from '@/stores/authStore';
 import { pickAndUploadImage } from '@/lib/uploadImage';
+import FeedSourcePicker from '@/components/FeedSourcePicker';
 
 type Props = {
   visible: boolean;
@@ -350,6 +351,11 @@ export default function FilterSheet({ visible, onClose, members, initialAdding }
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Source des annonces (alerte Jinka liée à cette recherche) */}
+          <Section title="Source des annonces">
+            <FeedSourcePicker groupId={groupId} listId={activeTab} members={members} />
+          </Section>
 
           {/* Type de transaction */}
           <Section title="Type de transaction">

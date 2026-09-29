@@ -12,6 +12,6 @@ Application mobile React Native / Expo pour chercher un appartement à Paris à 
 | [state.md](state.md) | Stores Zustand, hooks de données |
 | [screens.md](screens.md) | Chaque écran : rôle, logique, props |
 | [components.md](components.md) | Composants réutilisables |
-| [services.md](services.md) | Service d'annonces (stream.estate + mock) |
+| [services.md](services.md) | Source des annonces : Jinka via Cloud Functions, flux Firestore, annonces expirées, mock |
 | [notifications.md](notifications.md) | Push notifications Expo |
 | [env.md](env.md) | Variables d'environnement et config Firebase |

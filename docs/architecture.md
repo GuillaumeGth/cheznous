@@ -11,7 +11,7 @@
 | Animations | React Native Reanimated 4 + Gesture Handler 2 |
 | Notifications | Expo Notifications 56 |
 | Auth sociale | expo-auth-session (Google OAuth) |
-| Annonces | stream.estate API (fallback mock intégré) |
+| Annonces | Jinka, synchronisé par Cloud Functions (`functions/`) ; mock local optionnel |
 | TypeScript | 6.0, strict |
 
 ## Structure des dossiers
@@ -50,7 +50,8 @@ src/
     firebase.ts             ← Init Firebase (singleton)
     notifications.ts        ← Helpers push Expo
   services/
-    listingsService.ts      ← Fetch stream.estate ou mock
+    listings/               ← ListingsDataSource : flux Firestore (Jinka) ou mock
+    providerAccounts.ts     ← Callables Jinka (connexion, liaison d'alerte)
   stores/
     authStore.ts            ← Zustand : user Firebase + profil + coupleId
     filterStore.ts          ← Zustand : listes de recherche + filtres

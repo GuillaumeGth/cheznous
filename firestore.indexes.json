@@ -4,10 +4,59 @@
       "collectionGroup": "matches",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "couple_id", "order": "ASCENDING" },
-        { "fieldPath": "matched_at", "order": "DESCENDING" }
+        {
+          "fieldPath": "couple_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "matched_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "added_at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expired_at",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "feeds",
+      "fieldPath": "owner_id",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    }
+  ]
 }

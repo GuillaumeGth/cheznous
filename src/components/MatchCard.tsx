@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Match } from '@/types';
 import NotesSection from '@/components/NotesSection';
+import ExpiredBadge from '@/components/ExpiredBadge';
 
 type Member = { id: string; display_name: string };
 
@@ -43,6 +44,7 @@ export default function MatchCard({ match, onStatusChange, members, myUid }: Pro
         style={styles.image}
         resizeMode="cover"
       />
+      {!!listing.expired_at && <ExpiredBadge />}
       <View style={styles.content}>
         <View style={styles.row}>
           <Text style={styles.price}>{listing.price.toLocaleString('fr-FR')} €/mois</Text>

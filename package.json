@@ -53,6 +53,13 @@
     },
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|zustand|firebase|@firebase)"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/functions/"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/functions/"
     ]
   },
   "private": true

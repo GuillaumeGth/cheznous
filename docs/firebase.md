@@ -49,9 +49,31 @@ appId:             1:967416784277:web:aa9751713c003f501d029c
 
 ### `listings/{listingId}`
 
-Cache côté client. Le premier utilisateur qui fetch une annonce l'écrit ici (`setDoc merge: true`). Les deux partenaires lisent depuis cette collection pour voir les mêmes données.
+Cache partagé des annonces, lu par likes et matches. Écrit par la **sync serveur**
+(annonces Jinka, id `jinka_{adId}`) et par le client pour la source mock.
+`expired_at` est renseigné par le serveur quand l'annonce expire.
 
-Champs : tous les champs du type `Listing` + potentiellement `fetched_at` (utilisé par `useNewListingsNotify`).
+### `groups/{groupId}/feeds/{listId}` — `FeedLink`
+
+Lien entre une recherche et une alerte Jinka. **Écrit uniquement par Cloud Functions.**
+
+| Champ | Type | Notes |
+|---|---|---|
+| owner_id | string | membre dont le compte Jinka alimente la recherche |
+| alert_id / alert_name | string | alerte Jinka |
+| status | `'ok' \| 'expired' \| 'error'` | état de la dernière sync |
+| last_sync_at | string \| null | ISO date |
+
+Sous-collection `items/{listingId}` (`FeedItem`) : `Listing` + `added_at`
+(première vue, clé de pagination), `fetched_at`, `active`. Voir [services.md](services.md).
+
+### `users/{uid}/provider_accounts/jinka` — `ProviderAccount`
+
+Email, `status`, `alerts[]`, `last_sync_at`, `last_error`. Lisible par son propriétaire, écrit par le serveur.
+
+### `provider_tokens/{uid}_jinka`
+
+Token d'accès Jinka. **Aucun accès client** (`allow read, write: if false`) — seul l'Admin SDK y accède.
 
 ### `swipes/{uid}_{listingId}`
 
@@ -95,7 +117,10 @@ Fichier : `firestore.rules`
 | couples | membre OU couple ouvert (pour lookup invite) | membre ; tout auth pour créer ; tout auth pour rejoindre un couple ouvert (contraintes strictes) |
 | listings | tout auth | tout auth |
 | swipes | tout auth | propriétaire uniquement (user_id == auth.uid) |
-| matches | tout auth | tout auth |
+| matches | tout auth | tout auth (le serveur y écrit aussi `listing.expired_at`) |
+| groups/{g}/feeds (+ items) | membres du groupe | serveur uniquement |
+| users/{uid}/provider_accounts | propriétaire | serveur uniquement |
+| provider_tokens | personne | serveur uniquement |
 
 **Note sécurité** : la collection `notes` n'a pas de règle explicite dans le fichier actuel — à ajouter.
 
@@ -121,6 +146,12 @@ Fichier : `firestore.indexes.json`
 ```
 
 Utilisé par la query dans `useMatches` : `where('couple_id', '==', coupleId)` + tri par `matched_at` décroissant.
+
+Flux d'annonces (`items`, portée collection) :
+- `active ASC, added_at DESC` — lecture du flux par l'app (`feedDataSource`)
+- `active ASC, expired_at ASC` — purge des items expirés (sweep serveur)
+
+Override `feeds.owner_id` (portée collection **et** collection group) — `listFeeds({ ownerId })` à la déconnexion/reconnexion.
 
 ## Firebase Storage
 

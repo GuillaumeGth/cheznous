@@ -16,7 +16,11 @@ npm run web              # = expo start --web
 Tests run with Jest (`jest-expo`):
 
 ```bash
-npm test                # run the Jest suite
+npm test                # run the Jest suite (app; functions/ is excluded)
+npm --prefix functions test          # Cloud Functions tests (Jest + ts-jest)
+npm --prefix functions run typecheck # Cloud Functions tsc
+npm --prefix functions run serve     # functions + firestore emulators (needs Node >= 22.12)
+firebase deploy --only functions,firestore:rules,firestore:indexes  # needs the Blaze plan
 ```
 
 There is no lint script configured.
@@ -84,7 +88,11 @@ Singleton init in `src/lib/firebase.ts` with `experimentalForceLongPolling: true
 | `notes` | `{uid}_{listingId}` | Per-user note on a listing; all members' notes are read together (`useListingNotes`) |
 | `group_invitations` | auto | `GroupInvitation` — pending/accepted/rejected |
 | `follows` | `{follower_id}_{following_id}` | Follow relationships between users |
-| `listings` | `{listingId}` | Cached by the first client to fetch; all members read from here |
+| `listings` | `{listingId}` | Shared listing cache read by likes/matches. Written by the server sync (`jinka_{adId}`) or by the client for mock listings; `expired_at` set by the server |
+| `groups/{id}/feeds` | `{listId}` | `FeedLink`: search list ↔ Jinka alert (`owner_id`, `alert_id`, `status`). **Server-only writes**, members read |
+| `groups/{id}/feeds/{listId}/items` | `{listingId}` | `FeedItem` = `Listing` + `added_at`, `fetched_at`, `active`. Server-only writes |
+| `users/{uid}/provider_accounts` | `jinka` | `ProviderAccount` (email, status, alerts). Owner reads, server writes |
+| `provider_tokens` | `{uid}_jinka` | Jinka access token. **No client access** (Admin SDK only); the password is never stored |
 | `swipes` | `{uid}_{listId}_{listingId}` | One doc per user **per search list** per listing (`user_id`, `couple_id`, `search_list_id`, `listing_id`, `direction`) |
 | `matches` | `{groupId}_{listId}_{listingId}` | Created client-side (`couple_id`, `search_list_id`, `listing_id`, `listing`, `matched_at`, `status`) |
 | `matches/{id}/messages` | auto | `ChatMessage`; per-match chat subcollection |
@@ -94,19 +102,24 @@ Singleton init in `src/lib/firebase.ts` with `experimentalForceLongPolling: true
 
 ### Listings pipeline
 
-`src/services/listingsService.ts` — fetches from **stream.estate** if `EXPO_PUBLIC_STREAM_ESTATE_KEY` is set, otherwise falls back to a mock generator. Results are paginated (10 per page). `useListings` hook caches each fetched listing into Firestore so all group members see the same data. Stack pre-fetches when ≤ 3 cards remain.
+Listings come from **Jinka** (no public API — its internal web API, ported from kajin) through **Cloud Functions** in `functions/` (region `europe-west1`). A group member connects their Jinka account (Profile) and links one of their alerts to a search list (FilterSheet → "Source des annonces"); the whole group then swipes that feed. The app never calls Jinka. Full details: `docs/services.md`.
 
-**`SearchFilters` fields** — convention: `0` means "no restriction" for numeric bounds.
+- **Server** (`functions/src`): `ListingProvider` interface (Jinka in `providers/jinka/`), `FeedStore` persistence interface (`firestoreFeedStore` / in-memory fake in tests), `sync.ts`, callables in `accounts.ts`. Scheduled `syncListingFeeds` (every 20 min, first 3 pages per alert) and `sweepListingFeeds` (nightly: all pages ≤ 20, expires vanished ads, purges items expired > 30 days). Each alert is fetched once per owner and fanned out to every linked list. Expired Jinka session → token deleted, account/feeds `status: 'expired'`, user reconnects manually.
+- **Expired listings**: `Listing.expired_at` + `FeedItem.active`. Live → expired transitions are propagated to `listings/{id}` and `matches.listing.expired_at` (badge on Match/Like cards). Already-expired ads never enter a feed.
+- **Client** (`src/services/listings/`): `ListingsDataSource` interface (`fetchPage(query, cursor)`, `kind: 'feed' | 'local'`); `feedDataSource` reads `groups/{g}/feeds/{listId}/items` (`active == true`, `added_at` desc) and refines with the list's `SearchFilters` client-side (`matchesFilters`); `mockDataSource` when `EXPO_PUBLIC_LISTINGS_SOURCE=mock`. `getListingsDataSource()` is the single switch point. `listingsStore` paginates by cursor, excludes already-swiped listings, and holds an `error` state.
+- `functions/src/types.ts` mirrors `Listing` and the provider types from `src/types` — keep both in sync.
+
+**`SearchFilters` fields** — convention: `0` means "no restriction" for numeric bounds. They **refine** the linked Jinka alert client-side; `transaction_type` has no effect on the Jinka feed (the alert defines it).
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `transaction_type` | `'rent' \| 'buy'` | `'rent'` | Maps to `transactionType=1/2` in stream.estate |
-| `arrondissements` | `number[]` | `[]` | Empty = all 20 arrondissements |
-| `price_min` | `number` | `0` | `budgetMin` in stream.estate; ignored when 0 |
-| `price_max` | `number` | `0` | `budgetMax` in stream.estate; ignored when 0 |
-| `surface_min` | `number` | `0` | `surfaceMin` in stream.estate; ignored when 0 |
-| `surface_max` | `number` | `0` | `surfaceMax` in stream.estate; ignored when 0 |
-| `rooms_min` | `number` | `0` | `roomMin` in stream.estate; ignored when 0 |
+| `transaction_type` | `'rent' \| 'buy'` | `'rent'` | Only used by the mock source |
+| `arrondissements` | `number[]` | `[]` | Empty = all 20 arrondissements. Listings outside Paris have `arrondissement: 0` |
+| `price_min` | `number` | `0` | ignored when 0 |
+| `price_max` | `number` | `0` | ignored when 0 |
+| `surface_min` | `number` | `0` | ignored when 0 |
+| `surface_max` | `number` | `0` | ignored when 0 |
+| `rooms_min` | `number` | `0` | ignored when 0 |
 | `min_likes` | `number` | `0` | Min members who must like a listing to match; `0` = unanimity |
 
 `SearchFilters` live per **search list** (`SearchList.filters`), not per group. Each group has multiple search lists with their own filters and optional member sub-group; the top-level `Group.filters` field is legacy.
@@ -119,14 +132,14 @@ Singleton init in `src/lib/firebase.ts` with `experimentalForceLongPolling: true
 
 ### Notifications
 
-`src/lib/notifications.ts` — push tokens registered via Expo Notifications on login (real device only; silently skipped on simulator). Partner swipe notifications are sent via the Expo push API (`https://exp.host/--/api/v2/push/send`) directly from the client — there is no server-side function. `notify_on_partner_swipe` and `notify_on_new_listings` are opt-in prefs on `UserProfile`. Chat messages also trigger a push to all other group members (always, no opt-in gate).
+`src/lib/notifications.ts` — push tokens registered via Expo Notifications on login (real device only; silently skipped on simulator). Partner swipe notifications are sent via the Expo push API (`https://exp.host/--/api/v2/push/send`) directly from the client (the only Cloud Functions are the listings sync ones). The "new listings" local notification (`useNewListingsNotify`) counts items added to the active list's feed since the last foreground. `notify_on_partner_swipe` and `notify_on_new_listings` are opt-in prefs on `UserProfile`. Chat messages also trigger a push to all other group members (always, no opt-in gate).
 
 ### Environment variables
 
 Required in `.env` (prefix `EXPO_PUBLIC_` makes them available client-side):
 
 ```
-EXPO_PUBLIC_STREAM_ESTATE_KEY=   # stream.estate API key; omit to use mock data
+EXPO_PUBLIC_LISTINGS_SOURCE=     # 'mock' = locally generated listings; omit = Jinka feed
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID= # Google OAuth web client ID
 EXPO_PUBLIC_FLUXIMMO_KEY=        # reserved, not yet wired up
 ```

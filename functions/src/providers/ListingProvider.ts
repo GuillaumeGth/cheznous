@@ -1,0 +1,31 @@
+import { Listing, ProviderAlert, ProviderId } from '../types';
+
+/**
+ * Contract for a listings provider. Sync and callables only depend on this
+ * interface, so a provider can be swapped or added (Jinka today, another
+ * aggregator tomorrow) without touching the app or the Firestore feed format.
+ *
+ * Providers are alert-based: the user configures searches on the provider's
+ * side and we read the results. Our own filters are applied later, client-side.
+ */
+export interface ListingProvider {
+  readonly id: ProviderId;
+  /** Exchanges credentials for a token. Throws `ProviderAuthError` if refused. */
+  authenticate(email: string, password: string): Promise<string>;
+  listAlerts(token: string): Promise<ProviderAlert[]>;
+  /** Page is 1-based; `nbPages` is the provider's page count for that alert. */
+  fetchAlertPage(token: string, alertId: string, page: number): Promise<ProviderAlertPage>;
+}
+
+export type ProviderAlertPage = {
+  listings: Listing[];
+  nbPages: number;
+};
+
+/** Invalid credentials or expired token — the user must reconnect. */
+export class ProviderAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProviderAuthError';
+  }
+}
