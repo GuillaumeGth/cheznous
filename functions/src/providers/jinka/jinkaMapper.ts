@@ -14,7 +14,7 @@ export type JinkaRawAd = {
   lat?: number | string | null;
   lng?: number | string | null;
   description?: string | null;
-  images?: unknown;
+  images?: unknown; // comma-separated URL string (current API) or array (older payloads)
   created_at?: string | null;
   expired_at?: string | null;
   deleted_at?: string | null;
@@ -32,7 +32,12 @@ function num(value: unknown): number | null {
   return typeof n === 'number' && Number.isFinite(n) ? n : null;
 }
 
+// The dashboard sends `images` as one comma-separated string of URLs; older
+// payloads (kajin/jinka-mcp era) used an array of strings or `{ url }` objects.
 function images(value: unknown): string[] {
+  if (typeof value === 'string') {
+    return value.split(',').map((u) => u.trim()).filter((u) => /^https?:\/\//.test(u));
+  }
   if (!Array.isArray(value)) return [];
   return value
     .map((item) => {

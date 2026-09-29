@@ -100,6 +100,14 @@ describe('mapJinkaAd', () => {
     });
   });
 
+  it('reads images sent as a comma-separated string (current dashboard format)', () => {
+    const listing = mapJinkaAd({
+      id: 1,
+      images: 'https://img/1.jpg, https://img/2.jpg,,not-a-url',
+    }, 'a');
+    expect(listing.images).toEqual(['https://img/1.jpg', 'https://img/2.jpg']);
+  });
+
   it('carries the expiration date of expired or deleted ads', () => {
     expect(mapJinkaAd({ id: 1, expired_at: '2026-09-01' }, 'a').expired_at).toBe('2026-09-01');
     expect(mapJinkaAd({ id: 1, deleted_at: '2026-09-02' }, 'a').expired_at).toBe('2026-09-02');
