@@ -63,12 +63,20 @@ export async function linkSearchList(groupId: string, listId: string, alertId: s
   return data.newItems;
 }
 
+// Errors raised before our code runs (platform/transport) carry the bare code
+// as message ("unauthenticated") — map those to something readable.
+const TRANSPORT_MESSAGES: Record<string, string> = {
+  'functions/unauthenticated': 'Service momentanément indisponible, réessaie dans une minute.',
+  'functions/unavailable': 'Service injoignable, vérifie ta connexion et réessaie.',
+  'functions/deadline-exceeded': 'Jinka met trop de temps à répondre, réessaie.',
+};
+
 /** The server sends user-facing French messages; fall back for transport errors. */
 export function callableErrorMessage(e: unknown): string {
   const code = (e as { code?: unknown })?.code;
   const message = (e as { message?: unknown })?.message;
-  if (typeof code === 'string' && code !== 'functions/internal' && typeof message === 'string' && message) {
-    return message;
-  }
-  return 'Une erreur est survenue, réessaie.';
+  if (typeof code !== 'string' || code === 'functions/internal') return 'Une erreur est survenue, réessaie.';
+  const bare = typeof message !== 'string' || !message || message === code.replace('functions/', '');
+  if (bare) return TRANSPORT_MESSAGES[code] ?? 'Une erreur est survenue, réessaie.';
+  return message as string;
 }
