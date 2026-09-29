@@ -47,9 +47,14 @@ function GoogleButton({ onCredential, disabled }: { onCredential: (token: string
   );
 }
 
-// expo-auth-session throws at render on iOS without an iOS client id — hide the
-// button there rather than crash the login screen.
-const showGoogleBtn = !!GOOGLE_WEB_CLIENT_ID && (Platform.OS !== 'ios' || !!GOOGLE_IOS_CLIENT_ID);
+// expo-auth-session throws at render on iOS/Android without that platform's client
+// id — hide the button there rather than crash the login screen.
+const PLATFORM_CLIENT_ID = Platform.select({
+  ios: GOOGLE_IOS_CLIENT_ID,
+  android: GOOGLE_ANDROID_CLIENT_ID,
+  default: GOOGLE_WEB_CLIENT_ID,
+});
+const showGoogleBtn = !!GOOGLE_WEB_CLIENT_ID && !!PLATFORM_CLIENT_ID;
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -75,7 +80,7 @@ export default function LoginScreen() {
         setProfile(profile);
         const groupId = profile.couple_id ?? null;
         setGroupId(groupId);
-        router.replace('/');
+        router.replace('/(tabs)');
       } else {
         await setDoc(doc(db, 'users', userCred.user.uid), {
           id: userCred.user.uid,
@@ -88,7 +93,7 @@ export default function LoginScreen() {
           notification_prefs: DEFAULT_NOTIFICATION_PREFS,
           created_at: new Date().toISOString(),
         });
-        router.replace('/');
+        router.replace('/(tabs)');
       }
     } catch (e: any) {
       logError(e, 'auth-google-credential');
@@ -127,9 +132,9 @@ export default function LoginScreen() {
         setProfile(profile);
         const groupId = profile.couple_id ?? null;
         setGroupId(groupId);
-        router.replace('/');
+        router.replace('/(tabs)');
       } else {
-        router.replace('/');
+        router.replace('/(tabs)');
       }
     } catch (e: any) {
       logError(e, `auth-${mode}`);

@@ -2,15 +2,20 @@ import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/stores/authStore';
+import FullScreenLoader from '@/components/FullScreenLoader';
 
 export default function TabsLayout() {
   const isLoading = useAuthStore((s) => s.isLoading);
   const hasUser = useAuthStore((s) => !!s.firebaseUser);
+  const hasGroup = useAuthStore((s) => !!s.groupId);
   const insets = useSafeAreaInsets();
 
   if (!isLoading && !hasUser) {
     return <Redirect href="/(auth)" />;
   }
+  // Reached straight from the login screen: wait for SharedGroupsSync to set
+  // the home group before mounting the tabs.
+  if (hasUser && !hasGroup) return <FullScreenLoader />;
 
   return (
     <Tabs

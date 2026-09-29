@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
-import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '@/stores/authStore';
+import FullScreenLoader from '@/components/FullScreenLoader';
 
 export default function Index() {
   // Atomic selectors: re-render only when the relevant boolean flips, not on
@@ -11,13 +11,7 @@ export default function Index() {
 
   // No group yet: SharedGroupsSync joins every group / creates one and sets
   // the active group — there is no invite step anymore.
-  if (isLoading || (hasUser && !hasGroup)) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FA' }}>
-        <ActivityIndicator size="large" color="#4A6CF7" />
-      </View>
-    );
-  }
+  if (isLoading || (hasUser && !hasGroup)) return <FullScreenLoader />;
 
   if (!hasUser) return <Redirect href="/(auth)" />;
   return <Redirect href="/(tabs)" />;

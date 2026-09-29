@@ -2,14 +2,20 @@
   "expo": {
     "name": "Chez Nous",
     "slug": "swipeMyFlat",
-    "version": "1.0.0",
+    "version": "1.0.4",
     "scheme": "swipemyflat",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cheznous.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "buildNumber": "5"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +29,8 @@
         "android.permission.RECORD_AUDIO"
       ],
       "googleServicesFile": "./google-services.json",
-      "package": "com.cheznous.app"
+      "package": "com.cheznous.app",
+      "versionCode": 5
     },
     "web": {
       "favicon": "./assets/favicon.png"
