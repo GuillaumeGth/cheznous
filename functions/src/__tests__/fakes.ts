@@ -1,4 +1,4 @@
-import { FeedStore, isUnchanged, UpsertResult } from '../store/FeedStore';
+import { FeedStore, planUpsert, UpsertResult } from '../store/FeedStore';
 import {
   ListingProvider, ProviderAlertNotFoundError, ProviderAlertPage, ProviderAuthError,
 } from '../providers/ListingProvider';
@@ -41,24 +41,17 @@ export class MemoryFeedStore implements FeedStore {
     const key = this.feedKey(g, l);
     const feed = this.items.get(key) ?? new Map<string, FeedItem>();
     this.items.set(key, feed);
-    const result: UpsertResult = { added: 0, expired: [], written: 0 };
+    const result: UpsertResult = { added: 0, expired: [] };
     for (const listing of listings) {
-      const prev = feed.get(listing.id);
-      const active = listing.expired_at === null;
-      if (!prev && !active) continue;
-      if (prev && isUnchanged(listing, prev)) continue;
-      if (!prev) result.added += 1;
-      if (prev?.active && !active) result.expired.push(listing);
-      feed.set(listing.id, { ...listing, active, fetched_at: nowIso, added_at: prev?.added_at ?? nowIso });
+      const plan = planUpsert(listing, feed.get(listing.id) ?? null, nowIso);
+      if (!plan) continue;
+      if (plan.added) result.added += 1;
+      if (plan.expired) result.expired.push(listing);
+      feed.set(listing.id, plan.item);
       this.listings.set(listing.id, listing);
-      result.written += 1;
       this.itemWrites += 1;
     }
     return result;
-  }
-  async knownItemIds(g: string, l: string, ids: string[]) {
-    const feed = this.items.get(this.feedKey(g, l));
-    return new Set(ids.filter((id) => feed?.has(id)));
   }
   async expireMissingItems(g: string, l: string, seen: Set<string>, nowIso: string) {
     const feed = this.items.get(this.feedKey(g, l)) ?? new Map<string, FeedItem>();
@@ -97,7 +90,6 @@ export class MemoryFeedStore implements FeedStore {
     const cur = this.accounts.get(this.userKey(u, p));
     if (cur) this.accounts.set(this.userKey(u, p), { ...cur, ...patch });
   }
-  async deleteAccount(u: string, p: ProviderId) { this.accounts.delete(this.userKey(u, p)); }
 }
 
 export function makeListing(id: string, overrides: Partial<Listing> = {}): Listing {
@@ -114,19 +106,11 @@ export function makeListing(id: string, overrides: Partial<Listing> = {}): Listi
 /** Provider whose data is set per token → alert → pages. */
 export class FakeProvider implements ListingProvider {
   readonly id = 'jinka' as const;
-  validCredentials = new Map<string, string>(); // email → password
   alerts: ProviderAlert[] = [];
   pages = new Map<string, Listing[][]>(); // alertId → pages
   validTokens = new Set<string>();
   calls: string[] = [];
 
-  async authenticate(email: string, password: string) {
-    this.calls.push(`auth:${email}`);
-    if (this.validCredentials.get(email) !== password) throw new ProviderAuthError('Identifiants Jinka invalides');
-    const token = `token-${email}`;
-    this.validTokens.add(token);
-    return token;
-  }
   private check(token: string) {
     if (!this.validTokens.has(token)) throw new ProviderAuthError('Session Jinka expirée');
   }

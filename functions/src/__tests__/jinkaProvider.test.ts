@@ -14,25 +14,6 @@ function providerWith(...responses: Response[]) {
 }
 
 describe('jinkaProvider', () => {
-  it('authenticates with a form-encoded POST and returns the token', async () => {
-    const { provider, fetchMock } = providerWith(jsonResponse({ access_token: 'tok' }));
-
-    await expect(provider.authenticate('a@x.fr', 'p&ss')).resolves.toBe('tok');
-
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('https://api.jinka.fr/apiv2/user/auth');
-    expect(init.method).toBe('POST');
-    expect(init.body).toBe('email=a%40x.fr&password=p%26ss');
-  });
-
-  it('maps a refused login to ProviderAuthError, but not a 429', async () => {
-    const refused = providerWith(jsonResponse({}, 401));
-    await expect(refused.provider.authenticate('a', 'b')).rejects.toBeInstanceOf(ProviderAuthError);
-
-    const limited = providerWith(jsonResponse({}, 429));
-    await expect(limited.provider.authenticate('a', 'b')).rejects.not.toBeInstanceOf(ProviderAuthError);
-  });
-
   it('lists alerts with the bearer token', async () => {
     const { provider, fetchMock } = providerWith(jsonResponse([
       { id: 42, name: 'n°2', user_name: 'SO le J' },

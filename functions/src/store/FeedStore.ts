@@ -7,8 +7,6 @@ export type UpsertResult = {
   added: number;
   /** Items that were live and are now expired (to propagate to matches). */
   expired: Listing[];
-  /** Items actually written (new or changed) — unchanged ones are skipped. */
-  written: number;
 };
 
 /** True when the provider returned exactly what the feed already holds. */
@@ -17,6 +15,26 @@ export function isUnchanged(listing: Listing, prev: FeedItem): boolean {
   return (Object.keys(listing) as (keyof Listing)[]).every(
     (key) => JSON.stringify(listing[key]) === JSON.stringify(prev[key]),
   );
+}
+
+/**
+ * The upsert rules, shared by every FeedStore implementation: `null` = nothing
+ * to write (unchanged, or first seen already expired — nobody needs to swipe
+ * it). Existing items keep their `added_at`.
+ */
+export function planUpsert(
+  listing: Listing,
+  prev: FeedItem | null,
+  nowIso: string,
+): { item: FeedItem; added: boolean; expired: boolean } | null {
+  const active = listing.expired_at === null;
+  if (!prev && !active) return null;
+  if (prev && isUnchanged(listing, prev)) return null;
+  return {
+    item: { ...listing, active, fetched_at: nowIso, added_at: prev?.added_at ?? nowIso },
+    added: !prev,
+    expired: !!prev?.active && !active,
+  };
 }
 
 /**
@@ -33,14 +51,8 @@ export interface FeedStore {
   /** Deletes the link and all its items. */
   deleteFeed(groupId: string, listId: string): Promise<void>;
 
-  /**
-   * Upserts items into the feed and the shared `listings` cache. Existing
-   * items keep their `added_at`; unchanged items aren't rewritten; an item seen
-   * for the first time already expired is skipped (nobody needs to swipe it).
-   */
+  /** Upserts items into the feed and the shared `listings` cache (see `planUpsert`). */
   upsertFeedItems(groupId: string, listId: string, listings: Listing[], nowIso: string): Promise<UpsertResult>;
-  /** Which of `ids` are already in the feed. */
-  knownItemIds(groupId: string, listId: string, ids: string[]): Promise<Set<string>>;
   /** Expires the live items not in `seenIds` (gone from the provider). Returns them. */
   expireMissingItems(groupId: string, listId: string, seenIds: Set<string>, nowIso: string): Promise<Listing[]>;
   /** Deletes items expired before `beforeIso`. `listings/{id}` is kept (likes/matches use it). */
@@ -56,5 +68,4 @@ export interface FeedStore {
   saveAccount(account: ProviderAccount): Promise<void>;
   /** Merge-updates the account; no-op if it doesn't exist. */
   updateAccount(userId: string, provider: ProviderId, patch: Partial<ProviderAccount>): Promise<void>;
-  deleteAccount(userId: string, provider: ProviderId): Promise<void>;
 }

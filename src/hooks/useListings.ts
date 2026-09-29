@@ -13,12 +13,10 @@ function currentQuery(): { query: ListingsQuery; uid: string } | null {
   return { query: { groupId, listId: activeListId, filters }, uid: firebaseUser.uid };
 }
 
-/** Force-reloads the stack if `listId` is the list currently swiped (e.g. right after linking it). */
-export function refreshListingsIfActive(listId: string) {
+/** Force-reloads the swipe stack (e.g. after a manual refetch or a new token). */
+export function refreshActiveListings() {
   const current = currentQuery();
-  if (current && current.query.listId === listId) {
-    useListingsStore.getState().refresh(current.query, current.uid, true);
-  }
+  if (current) useListingsStore.getState().refresh(current.query, current.uid, true);
 }
 
 // Thin wrapper over the module-level listingsStore. The store holds the cache

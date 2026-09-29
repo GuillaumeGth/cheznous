@@ -3,8 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-na
 import { Ionicons } from '@expo/vector-icons';
 import { useFeedLink } from '@/hooks/useFeedLink';
 import { useProviderAccount } from '@/hooks/useProviderAccount';
-import { refreshListingsIfActive } from '@/hooks/useListings';
-import { callableErrorMessage, linkSearchList } from '@/services/providerAccounts';
+import { APP_TOKEN_EXPIRED_MESSAGE, callableErrorMessage, linkSearchList } from '@/services/providerAccounts';
 import { ProviderAlert } from '@/types';
 import { styles } from '@/styles/feedSourcePicker.styles';
 
@@ -28,9 +27,8 @@ export default function FeedSourcePicker({ groupId, listId }: Props) {
     if (!groupId) return;
     setBusy(alertId ?? 'unlink');
     try {
+      // The swipe screen reloads by itself when the link changes (feedKey).
       await linkSearchList(groupId, listId, alertId);
-      // The callable returns once the feed is filled — reload the stack now.
-      refreshListingsIfActive(listId);
     } catch (e) {
       Alert.alert('Jinka', callableErrorMessage(e));
     } finally {
@@ -57,9 +55,7 @@ export default function FeedSourcePicker({ groupId, listId }: Props) {
               <Text style={styles.linkedSub}>Alerte Jinka</Text>
             ) : (
               <Text style={styles.linkedSubWarning}>
-                {link.status === 'expired'
-                  ? "Token Jinka de l'app expiré — plus de mise à jour"
-                  : 'Alerte introuvable ou synchro en échec'}
+                {link.status === 'expired' ? APP_TOKEN_EXPIRED_MESSAGE : 'Alerte introuvable ou synchro en échec'}
               </Text>
             )}
           </View>
@@ -90,9 +86,7 @@ export default function FeedSourcePicker({ groupId, listId }: Props) {
         </View>
       ) : (
         <Text style={styles.hint}>
-          {account?.status === 'expired'
-            ? "Le token Jinka de l'app a expiré : l'administrateur doit le remplacer."
-            : 'Aucune alerte Jinka disponible pour le moment.'}
+          {account?.status === 'expired' ? APP_TOKEN_EXPIRED_MESSAGE : 'Aucune alerte Jinka disponible pour le moment.'}
         </Text>
       )}
     </View>

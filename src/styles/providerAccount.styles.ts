@@ -62,15 +62,6 @@ export const styles = StyleSheet.create({
     borderColor: '#4A6CF7',
   },
   secondaryBtnText: { color: '#4A6CF7', fontSize: 14, fontWeight: '700' },
-  dangerBtn: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 11,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FF4444',
-  },
-  dangerBtnText: { color: '#FF4444', fontSize: 14, fontWeight: '700' },
   alertRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -44,22 +44,16 @@ export type ProviderAlert = {
 
 export type SyncStatus = 'ok' | 'expired' | 'error';
 
-/** `users/{uid}/provider_accounts/{provider}` — readable by its owner only. */
 /**
- * - `password`: email + password exchanged for a token (kajin's flow).
- * - `token`: bearer token pasted by the user — for accounts created with
- *   Google/Apple/email code, which have no provider password.
+ * `users/{owner}/provider_accounts/{provider}` — the app-wide account lives
+ * under GLOBAL_OWNER and is readable by every signed-in user.
  */
-export type ProviderAuthMethod = 'password' | 'token';
-
 export type ProviderAccount = {
   user_id: string;
   provider: ProviderId;
-  /** Account email when known (password flow, or read from the token). */
-  email: string;
-  auth_method: ProviderAuthMethod;
   status: SyncStatus;
   alerts: ProviderAlert[];
+  /** When the current token was set. */
   connected_at: string;
   last_sync_at: string | null;
   last_error: string | null;
@@ -85,6 +79,7 @@ export type FeedLink = {
   alert_name: string;
   linked_at: string;
   status: SyncStatus;
+  /** First successful sync (null = still filling). Not bumped on later runs. */
   last_sync_at: string | null;
 };
 

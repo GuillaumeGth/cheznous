@@ -10,6 +10,7 @@ import { useFilterStore } from '@/stores/filterStore';
 import { useListings } from '@/hooks/useListings';
 import { useFeedLink } from '@/hooks/useFeedLink';
 import { getListingsDataSource } from '@/services/listings';
+import { APP_TOKEN_EXPIRED_MESSAGE } from '@/services/providerAccounts';
 import { useGroup } from '@/hooks/useGroup';
 import { useNewListingsNotify } from '@/hooks/useNewListingsNotify';
 import { useSwipeActions } from '@/hooks/useSwipeActions';
@@ -171,58 +172,44 @@ export default function SwipeScreen() {
       {/* Cards area */}
       <View style={styles.cardsArea}>
         {!hasSearch ? (
-          <View style={styles.centered}>
-            <Ionicons name="search-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>Aucune recherche</Text>
-            <Text style={styles.emptyDesc}>Crée une recherche pour commencer à swiper</Text>
-            <TouchableOpacity onPress={handleCreateSearch}>
-              <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
-                <Text style={styles.reloadText}>Créer une recherche</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="search-outline"
+            title="Aucune recherche"
+            desc="Crée une recherche pour commencer à swiper"
+            actionLabel="Créer une recherche"
+            onAction={handleCreateSearch}
+          />
         ) : isUnlinked ? (
-          <View style={styles.centered}>
-            <Ionicons name="link-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>Aucune alerte liée</Text>
-            <Text style={styles.emptyDesc}>Lie une alerte Jinka à cette recherche pour voir ses annonces</Text>
-            <TouchableOpacity onPress={handleFilterPress}>
-              <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
-                <Text style={styles.reloadText}>Choisir une alerte</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="link-outline"
+            title="Aucune alerte liée"
+            desc="Lie une alerte Jinka à cette recherche pour voir ses annonces"
+            actionLabel="Choisir une alerte"
+            onAction={handleFilterPress}
+          />
         ) : error && stack.length === 0 ? (
-          <View style={styles.centered}>
-            <Ionicons name="cloud-offline-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>Oups</Text>
-            <Text style={styles.emptyDesc}>{error.message}</Text>
-            <TouchableOpacity onPress={handleReload}>
-              <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
-                <Text style={styles.reloadText}>Réessayer</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="Oups"
+            desc={error}
+            actionLabel="Réessayer"
+            onAction={handleReload}
+          />
         ) : (isLoading || (NEEDS_FEED_LINK && feedLink === undefined)) && stack.length === 0 ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color="#4A6CF7" />
             <Text style={styles.loadingText}>Chargement des annonces…</Text>
           </View>
         ) : stack.length === 0 ? (
-          <View style={styles.centered}>
-            <Ionicons name="business-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>Plus d'annonces</Text>
-            <Text style={styles.emptyDesc}>
-              {feedLink?.status === 'expired'
-                ? "Le token Jinka de l'app a expiré : l'administrateur doit le remplacer"
-                : "Élargis tes filtres ou attends la prochaine synchro Jinka"}
-            </Text>
-            <TouchableOpacity onPress={handleReload}>
-              <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
-                <Text style={styles.reloadText}>Recharger</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon="business-outline"
+            title="Plus d'annonces"
+            desc={feedLink?.status === 'expired'
+              ? APP_TOKEN_EXPIRED_MESSAGE
+              : 'Élargis tes filtres ou attends la prochaine synchro Jinka'}
+            actionLabel="Recharger"
+            onAction={handleReload}
+          />
         ) : (
           visibleCards.map(({ listing, idx, isTop }) => (
             <SwipeCard
@@ -299,3 +286,27 @@ export default function SwipeScreen() {
     </SafeAreaView>
   );
 }
+
+type EmptyStateProps = {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  title: string;
+  desc: string;
+  actionLabel: string;
+  onAction: () => void;
+};
+
+// Centered placeholder of the cards area (no search, no alert, error, empty).
+const EmptyState = React.memo(function EmptyState({ icon, title, desc, actionLabel, onAction }: EmptyStateProps) {
+  return (
+    <View style={styles.centered}>
+      <Ionicons name={icon} size={64} color="#ccc" />
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyDesc}>{desc}</Text>
+      <TouchableOpacity onPress={onAction}>
+        <LinearGradient colors={ACTION_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.reloadBtn}>
+          <Text style={styles.reloadText}>{actionLabel}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
+  );
+});

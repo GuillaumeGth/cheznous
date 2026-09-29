@@ -1,7 +1,7 @@
 import { logger } from 'firebase-functions/logger';
 import { FeedStore } from './store/FeedStore';
 import { ListingProvider, ProviderAlertNotFoundError, ProviderAuthError } from './providers/ListingProvider';
-import { FeedLink, GLOBAL_OWNER, GroupSummary, Listing, ProviderId } from './types';
+import { FeedLink, GLOBAL_OWNER, Listing, ProviderId } from './types';
 
 /**
  * Only the alerts linked to a search list are read — never anything else.
@@ -40,7 +40,7 @@ export type SyncReport = {
 /**
  * Pulls each linked alert from its provider and upserts the results into the
  * linked search lists' feeds. Runs on schedule for every feed, and right after
- * a link/reconnect for just the affected ones (`feeds` argument).
+ * a link/token change for just the affected ones (`feeds` argument).
  *
  * Each owner's alerts are fetched once, then fanned out to every list linked to
  * them. A failure for one owner never stops the others.
@@ -69,10 +69,10 @@ export async function syncFeeds(
 // left the group (their account must stop feeding that group). The app-wide
 // account isn't a group member and feeds every group.
 async function dropOrphanFeeds(store: FeedStore, feeds: FeedLink[], report: SyncReport): Promise<FeedLink[]> {
-  const groups = new Map<string, GroupSummary | null>();
+  const groupIds = [...new Set(feeds.map((f) => f.group_id))];
+  const groups = new Map(await Promise.all(groupIds.map(async (id) => [id, await store.getGroup(id)] as const)));
   const valid: FeedLink[] = [];
   for (const feed of feeds) {
-    if (!groups.has(feed.group_id)) groups.set(feed.group_id, await store.getGroup(feed.group_id));
     const group = groups.get(feed.group_id);
     const ownerOk = feed.owner_id === GLOBAL_OWNER || !!group?.member_ids.includes(feed.owner_id);
     if (group && group.list_ids.includes(feed.list_id) && ownerOk) {
@@ -85,13 +85,19 @@ async function dropOrphanFeeds(store: FeedStore, feeds: FeedLink[], report: Sync
   return valid;
 }
 
+/** Token refused: forget it and flag the account (feeds are flagged by the caller). */
+export async function markOwnerExpired(store: FeedStore, ownerId: string, providerId: ProviderId, message: string) {
+  await store.deleteToken(ownerId, providerId);
+  await store.updateAccount(ownerId, providerId, { status: 'expired', last_error: message });
+}
+
 async function syncOwner(deps: SyncDeps, feeds: FeedLink[], mode: SyncMode, report: SyncReport): Promise<void> {
   const { store, providers, now } = deps;
   const { owner_id: ownerId, provider: providerId } = feeds[0];
   const provider = providers[providerId];
   const nowIso = now().toISOString();
   const setFeedsStatus = (list: FeedLink[], status: FeedLink['status']) =>
-    Promise.all(list.map((f) => store.updateFeed(f.group_id, f.list_id, { status })));
+    Promise.all(list.filter((f) => f.status !== status).map((f) => store.updateFeed(f.group_id, f.list_id, { status })));
 
   const token = await store.getToken(ownerId, providerId);
   if (!token) {
@@ -101,7 +107,8 @@ async function syncOwner(deps: SyncDeps, feeds: FeedLink[], mode: SyncMode, repo
 
   try {
     // Alert names change rarely: refresh them on the sweep only.
-    const alertNames = mode === 'sweep' ? await refreshAlerts(deps, ownerId, providerId, token) : null;
+    const alerts = mode === 'sweep' ? await provider.listAlerts(token) : null;
+    const alertNames = alerts && new Map(alerts.map((a) => [a.id, a.name]));
     const maxPages = mode === 'sweep' ? SWEEP_MAX_PAGES : INCREMENTAL_MAX_PAGES;
     const purgeBefore = new Date(now().getTime() - PURGE_AFTER_DAYS * 86_400_000).toISOString();
 
@@ -110,35 +117,53 @@ async function syncOwner(deps: SyncDeps, feeds: FeedLink[], mode: SyncMode, repo
         await setFeedsStatus(alertFeeds, 'error');
         continue;
       }
-      const hasNew = mode === 'sweep' ? null : (page: Listing[]) => bringsNewItems(store, alertFeeds, page);
-      let fetched: { listings: Listing[]; complete: boolean };
+      const seen = new Set<string>();
+      const expired = new Map<string, Listing>(); // deduped across feeds and pages
+      let complete: boolean;
       try {
-        fetched = await fetchAlert(provider, token, alertId, maxPages, hasNew);
+        // Each page is upserted as soon as it's read; an incremental run stops
+        // at the first page that brings nothing new (newest first).
+        complete = await readAlert(provider, token, alertId, maxPages, async (page) => {
+          let added = 0;
+          for (const feed of alertFeeds) {
+            const result = await store.upsertFeedItems(feed.group_id, feed.list_id, page, nowIso);
+            added += result.added;
+            for (const listing of result.expired) expired.set(listing.id, listing);
+          }
+          report.newItems += added;
+          for (const listing of page) seen.add(listing.id);
+          return mode === 'sweep' || added > 0;
+        });
       } catch (e) {
         if (!(e instanceof ProviderAlertNotFoundError)) throw e;
         await setFeedsStatus(alertFeeds, 'error'); // deleted on the provider: only this alert
         continue;
       }
+
       for (const feed of alertFeeds) {
-        await applyToFeed(store, feed, fetched.listings, mode === 'sweep' && fetched.complete, nowIso, report);
         if (mode === 'sweep') {
+          // "Missing" only means "gone" when every page was read (not capped).
+          if (complete) {
+            for (const listing of await store.expireMissingItems(feed.group_id, feed.list_id, seen, nowIso)) {
+              expired.set(listing.id, listing);
+            }
+          }
           report.purgedItems += await store.purgeExpiredItems(feed.group_id, feed.list_id, purgeBefore);
         }
-        const renamed = alertNames?.get(alertId);
-        await store.updateFeed(feed.group_id, feed.list_id, {
-          status: 'ok',
-          last_sync_at: nowIso,
-          ...(renamed && renamed !== feed.alert_name ? { alert_name: renamed } : {}),
-        });
+        const patch = feedPatch(feed, nowIso, alertNames?.get(alertId));
+        if (patch) await store.updateFeed(feed.group_id, feed.list_id, patch);
       }
+      if (expired.size > 0) await store.propagateExpiration([...expired.values()]);
+      report.expiredItems += expired.size;
     }
-    await store.updateAccount(ownerId, providerId, { status: 'ok', last_sync_at: nowIso, last_error: null });
+    await store.updateAccount(ownerId, providerId, {
+      status: 'ok', last_sync_at: nowIso, last_error: null, ...(alerts ? { alerts } : {}),
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     if (e instanceof ProviderAuthError) {
       report.expiredOwners += 1;
-      await store.deleteToken(ownerId, providerId);
-      await store.updateAccount(ownerId, providerId, { status: 'expired', last_error: message });
+      await markOwnerExpired(store, ownerId, providerId, message);
       await setFeedsStatus(feeds, 'expired');
     } else {
       report.errors += 1;
@@ -149,69 +174,37 @@ async function syncOwner(deps: SyncDeps, feeds: FeedLink[], mode: SyncMode, repo
   }
 }
 
-async function applyToFeed(
-  store: FeedStore,
-  feed: FeedLink,
-  listings: Listing[],
-  expireMissing: boolean,
-  nowIso: string,
-  report: SyncReport,
-): Promise<void> {
-  const { added, expired } = await store.upsertFeedItems(feed.group_id, feed.list_id, listings, nowIso);
-  // Only trusted when every page was read: otherwise "missing" may just mean
-  // "beyond the page cap".
-  const vanished = expireMissing
-    ? await store.expireMissingItems(feed.group_id, feed.list_id, new Set(listings.map((l) => l.id)), nowIso)
-    : [];
-  const newlyExpired = [...expired, ...vanished];
-  if (newlyExpired.length > 0) await store.propagateExpiration(newlyExpired);
-  report.newItems += added;
-  report.expiredItems += newlyExpired.length;
-}
-
-/** Refreshes the account's alert list; returns alert id → name. */
-async function refreshAlerts(
-  deps: SyncDeps, ownerId: string, providerId: ProviderId, token: string,
-): Promise<Map<string, string>> {
-  const alerts = await deps.providers[providerId].listAlerts(token);
-  await deps.store.updateAccount(ownerId, providerId, { alerts });
-  return new Map(alerts.map((a) => [a.id, a.name]));
-}
-
-// A page brings something new if any linked feed misses one of its ads.
-async function bringsNewItems(store: FeedStore, feeds: FeedLink[], page: Listing[]): Promise<boolean> {
-  const ids = page.map((l) => l.id);
-  if (ids.length === 0) return false;
-  for (const feed of feeds) {
-    const known = await store.knownItemIds(feed.group_id, feed.list_id, ids);
-    if (known.size < ids.length) return true;
-  }
-  return false;
+// Only what changed: the feed doc is watched by every client, so an unchanged
+// sync must not rewrite it.
+function feedPatch(feed: FeedLink, nowIso: string, alertName: string | undefined): Partial<FeedLink> | null {
+  const patch: Partial<FeedLink> = {};
+  if (feed.status !== 'ok') patch.status = 'ok';
+  if (!feed.last_sync_at) patch.last_sync_at = nowIso;
+  if (alertName && alertName !== feed.alert_name) patch.alert_name = alertName;
+  return Object.keys(patch).length > 0 ? patch : null;
 }
 
 /**
- * Reads the alert page by page, up to `maxPages`. With `hasNew`, stops after
- * the first page that brings nothing new. `complete` = every page was read.
+ * Reads the alert page by page (up to `maxPages`), handing each page to
+ * `onPage`, which returns whether to continue. Returns true when every page
+ * of the alert was read.
  */
-async function fetchAlert(
+async function readAlert(
   provider: ListingProvider,
   token: string,
   alertId: string,
   maxPages: number,
-  hasNew: ((page: Listing[]) => Promise<boolean>) | null,
-): Promise<{ listings: Listing[]; complete: boolean }> {
-  const byId = new Map<string, Listing>();
+  onPage: (page: Listing[]) => Promise<boolean>,
+): Promise<boolean> {
   let nbPages = 1;
   let lastRead = 0;
   for (let page = 1; page <= Math.min(nbPages, maxPages); page += 1) {
     const result = await provider.fetchAlertPage(token, alertId, page);
     nbPages = result.nbPages;
     lastRead = page;
-    const fresh = hasNew ? await hasNew(result.listings) : true;
-    for (const listing of result.listings) byId.set(listing.id, listing);
-    if (!fresh) break;
+    if (!(await onPage(result.listings))) break;
   }
-  return { listings: [...byId.values()], complete: lastRead >= nbPages };
+  return lastRead >= nbPages;
 }
 
 function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {

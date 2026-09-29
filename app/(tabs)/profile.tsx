@@ -184,10 +184,10 @@ export default function ProfileScreen() {
         </View>
 
         {/* Compte Jinka de l'app — rendu uniquement pour l'administrateur */}
-        {isProviderAdmin && (
+        {providerAccount && isProviderAdmin && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Annonces</Text>
-            <ProviderAccountSection onMessage={handleProviderMessage} />
+            <ProviderAccountSection account={providerAccount} onMessage={handleProviderMessage} />
           </View>
         )}
 

@@ -1,8 +1,6 @@
-import { useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuthStore } from '@/stores/authStore';
 import { GLOBAL_PROVIDER_OWNER, ProviderAccount } from '@/types';
+import { useDocSnapshot } from './useDocSnapshot';
 
 /**
  * Live view of the app-wide Jinka account (status, alerts, token expiry,
@@ -10,20 +8,8 @@ import { GLOBAL_PROVIDER_OWNER, ProviderAccount } from '@/types';
  * app has no Jinka account yet.
  */
 export function useProviderAccount(): ProviderAccount | null | undefined {
-  const uid = useAuthStore((s) => s.firebaseUser?.uid);
-  const [account, setAccount] = useState<ProviderAccount | null | undefined>(undefined);
-
-  useEffect(() => {
-    if (!uid) {
-      setAccount(null);
-      return;
-    }
-    return onSnapshot(
-      doc(db, 'users', GLOBAL_PROVIDER_OWNER, 'provider_accounts', 'jinka'),
-      (snap) => setAccount(snap.exists() ? (snap.data() as ProviderAccount) : null),
-      () => setAccount(null),
-    );
-  }, [uid]);
-
-  return account;
+  const signedIn = useAuthStore((s) => !!s.firebaseUser);
+  return useDocSnapshot<ProviderAccount>(
+    signedIn ? ['users', GLOBAL_PROVIDER_OWNER, 'provider_accounts', 'jinka'] : null,
+  );
 }

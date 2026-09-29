@@ -1,15 +1,16 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useProviderAccount } from '@/hooks/useProviderAccount';
-import { refreshListingsIfActive } from '@/hooks/useListings';
-import { useAuthStore } from '@/stores/authStore';
-import { useFilterStore } from '@/stores/filterStore';
+import { refreshActiveListings } from '@/hooks/useListings';
 import { callableErrorMessage, refetchProvider, setGlobalProviderToken } from '@/services/providerAccounts';
+import { ToastType } from '@/components/Toast';
+import { ProviderAccount } from '@/types';
 import { styles } from '@/styles/providerAccount.styles';
 
 type Props = {
-  onMessage: (message: string, type: 'success' | 'error' | 'info') => void;
+  /** The app-wide account; the parent renders this section for admins only. */
+  account: ProviderAccount;
+  onMessage: (message: string, type: ToastType) => void;
 };
 
 type Busy = 'token' | 'refetch' | null;
@@ -24,9 +25,7 @@ function formatDate(iso: string): string {
 // Profile section, visible to the app admin only: status of the app-wide Jinka
 // account, token expiry, manual refetch and token replacement. Other users
 // never configure anything — they just link alerts from the filters.
-export default function ProviderAccountSection({ onMessage }: Props) {
-  const uid = useAuthStore((s) => s.firebaseUser?.uid);
-  const account = useProviderAccount();
+export default function ProviderAccountSection({ account, onMessage }: Props) {
   const [token, setToken] = useState('');
   const [editingToken, setEditingToken] = useState(false);
   const [busy, setBusy] = useState<Busy>(null);
@@ -38,7 +37,7 @@ export default function ProviderAccountSection({ onMessage }: Props) {
       const { alerts, expiresAt } = await setGlobalProviderToken(token.trim());
       setToken('');
       setEditingToken(false);
-      refreshListingsIfActive(useFilterStore.getState().activeListId);
+      refreshActiveListings();
       onMessage(
         `Token Jinka enregistré · ${alerts.length} alerte${alerts.length > 1 ? 's' : ''}${expiresAt ? ` · valable jusqu'au ${formatDate(expiresAt)}` : ''}`,
         'success',
@@ -55,7 +54,7 @@ export default function ProviderAccountSection({ onMessage }: Props) {
     setBusy('refetch');
     try {
       const { feeds, newItems, expiredItems } = await refetchProvider();
-      refreshListingsIfActive(useFilterStore.getState().activeListId);
+      refreshActiveListings();
       if (feeds === 0) {
         onMessage('Alertes mises à jour. Lie une alerte à une recherche pour voir ses annonces.', 'info');
       } else {
@@ -74,8 +73,6 @@ export default function ProviderAccountSection({ onMessage }: Props) {
 
   const startEditing = useCallback(() => setEditingToken(true), []);
   const cancelEditing = useCallback(() => { setEditingToken(false); setToken(''); }, []);
-
-  if (!account || !uid || !account.admin_uids?.includes(uid)) return null;
 
   const expiresAt = account.token_expires_at ? Date.parse(account.token_expires_at) : null;
   const daysLeft = expiresAt !== null ? Math.floor((expiresAt - Date.now()) / DAY_MS) : null;

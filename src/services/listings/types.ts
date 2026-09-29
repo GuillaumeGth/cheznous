@@ -36,16 +36,3 @@ export type ListingsPage = {
   /** `null` once the source has nothing further. */
   nextCursor: ListingsCursor | null;
 };
-
-/**
- * - `setup`   — the list isn't usable yet (no provider alert linked).
- * - `network` — transient/permission failure; retrying may succeed.
- */
-export type DataSourceErrorCode = 'setup' | 'network';
-
-export class DataSourceError extends Error {
-  constructor(readonly code: DataSourceErrorCode, message: string) {
-    super(message);
-    this.name = 'DataSourceError';
-  }
-}

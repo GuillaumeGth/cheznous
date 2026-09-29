@@ -10,7 +10,7 @@ function setup() {
   provider.validTokens.add('tok');
   provider.alerts = [{ id: 'a1', name: 'Paris 11' }];
   const account: ProviderAccount = {
-    user_id: 'alice', provider: 'jinka', email: 'alice@x.fr', auth_method: 'password', status: 'ok',
+    user_id: 'alice', provider: 'jinka', status: 'ok',
     alerts: [], connected_at: '2026-01-01T00:00:00Z', last_sync_at: null, last_error: null,
   };
   store.accounts.set('alice/jinka', account);

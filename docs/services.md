@@ -34,7 +34,7 @@ App : ListingsDataSource (feed | mock) → listingsStore → écran swipe
 
 | Fichier | Rôle |
 |---|---|
-| `src/providers/ListingProvider.ts` | Interface : `authenticate`, `listAlerts`, `fetchAlertPage` ; `ProviderAuthError`, `ProviderAlertNotFoundError` |
+| `src/providers/ListingProvider.ts` | Interface : `listAlerts`, `fetchAlertPage` ; `ProviderAuthError`, `ProviderAlertNotFoundError` |
 | `src/schedule.ts` | Planning (Europe/Paris) et choix du mode du passage de nuit |
 | `src/providers/jinka/jinkaProvider.ts` | Appels HTTP Jinka (espacés de 500 ms, timeout 30 s) |
 | `src/providers/jinka/jinkaMapper.ts` | Annonce Jinka → `Listing` (`id = jinka_{adId}`) |

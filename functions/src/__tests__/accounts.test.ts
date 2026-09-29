@@ -1,5 +1,5 @@
 import {
-  AppError, emailFromToken, expiryFromToken, linkSearchList, normalizeToken, REFETCH_COOLDOWN_MS,
+  AppError, expiryFromToken, linkSearchList, normalizeToken, REFETCH_COOLDOWN_MS,
   refetchProvider, setGlobalToken,
 } from '../accounts';
 import { FakeProvider, FIXED_NOW, MemoryFeedStore, makeListing } from './fakes';
@@ -10,7 +10,7 @@ const ADMIN = 'alice';
 // App-wide account as bootstrapped by the migration: alice is the admin.
 function globalAccount(overrides: Partial<ProviderAccount> = {}): ProviderAccount {
   return {
-    user_id: GLOBAL_OWNER, provider: 'jinka', email: 'alice@x.fr', auth_method: 'token', status: 'ok',
+    user_id: GLOBAL_OWNER, provider: 'jinka', status: 'ok',
     alerts: [], connected_at: '2026-01-01T00:00:00Z', last_sync_at: null, last_error: null,
     admin_uids: [ADMIN],
     ...overrides,
@@ -164,10 +164,7 @@ describe('token helpers', () => {
     expect(normalizeToken('abc')).toBe('abc');
   });
 
-  it('reads email and expiry claims of a JWT, best effort', () => {
-    expect(emailFromToken(jwt({ email: 'a@x.fr' }))).toBe('a@x.fr');
-    expect(emailFromToken(jwt({ sub: '42' }))).toBeNull();
-    expect(emailFromToken('opaque-token')).toBeNull();
+  it('reads the expiry claim of a JWT, best effort', () => {
     expect(expiryFromToken(jwt({ exp: 1_800_000_000 }))).toBe('2027-01-15T08:00:00.000Z');
     expect(expiryFromToken('opaque-token')).toBeNull();
   });

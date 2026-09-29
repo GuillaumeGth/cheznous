@@ -1,5 +1,5 @@
 import { Firestore } from 'firebase-admin/firestore';
-import { FeedStore, isUnchanged, UpsertResult } from './FeedStore';
+import { FeedStore, planUpsert, UpsertResult } from './FeedStore';
 import { FeedItem, FeedLink, Listing, ProviderAccount, ProviderId } from '../types';
 
 // Firestore layout (see firestore.rules):
@@ -10,6 +10,17 @@ import { FeedItem, FeedLink, Listing, ProviderAccount, ProviderId } from '../typ
 //   listings/{id}                                   Listing    — shared cache (likes/matches)
 
 const BATCH_SIZE = 200; // ≤ 2 writes per item → stays under the 500-op batch limit
+const IN_QUERY_LIMIT = 30; // Firestore caps `in` filters at 30 values
+const NOT_FOUND = 5; // gRPC status code
+
+// update() without a prior get(): a missing doc is a no-op, not an error.
+async function updateIfExists(ref: FirebaseFirestore.DocumentReference, patch: object): Promise<void> {
+  try {
+    await ref.update(patch);
+  } catch (e) {
+    if ((e as { code?: unknown }).code !== NOT_FOUND) throw e;
+  }
+}
 
 function chunks<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -65,8 +76,7 @@ export function firestoreFeedStore(db: Firestore): FeedStore {
     },
 
     async updateFeed(groupId, listId, patch) {
-      const ref = feedRef(groupId, listId);
-      if ((await ref.get()).exists) await ref.update(patch);
+      await updateIfExists(feedRef(groupId, listId), patch);
     },
 
     async deleteFeed(groupId, listId) {
@@ -75,36 +85,23 @@ export function firestoreFeedStore(db: Firestore): FeedStore {
 
     async upsertFeedItems(groupId, listId, listings, nowIso) {
       const col = itemsRef(groupId, listId);
-      const result: UpsertResult = { added: 0, expired: [], written: 0 };
+      const result: UpsertResult = { added: 0, expired: [] };
       for (const chunk of chunks(listings, BATCH_SIZE)) {
         const snaps = await db.getAll(...chunk.map((l) => col.doc(l.id)));
         const batch = db.batch();
+        let writes = 0;
         chunk.forEach((listing, i) => {
-          const prev = snaps[i].exists ? (snaps[i].data() as FeedItem) : null;
-          const active = listing.expired_at === null;
-          if (!prev && !active) return;
-          if (prev && isUnchanged(listing, prev)) return;
-          if (!prev) result.added += 1;
-          if (prev?.active && !active) result.expired.push(listing);
-          const item: FeedItem = { ...listing, active, fetched_at: nowIso, added_at: prev?.added_at ?? nowIso };
-          batch.set(col.doc(listing.id), item);
+          const plan = planUpsert(listing, snaps[i].exists ? (snaps[i].data() as FeedItem) : null, nowIso);
+          if (!plan) return;
+          if (plan.added) result.added += 1;
+          if (plan.expired) result.expired.push(listing);
+          batch.set(col.doc(listing.id), plan.item);
           batch.set(db.collection('listings').doc(listing.id), listing, { merge: true });
-          result.written += 1;
+          writes += 1;
         });
-        if (result.written > 0) await batch.commit();
+        if (writes > 0) await batch.commit();
       }
       return result;
-    },
-
-    async knownItemIds(groupId, listId, ids) {
-      if (ids.length === 0) return new Set();
-      const col = itemsRef(groupId, listId);
-      const known = new Set<string>();
-      for (const chunk of chunks(ids, BATCH_SIZE)) {
-        const snaps = await db.getAll(...chunk.map((id) => col.doc(id)));
-        snaps.forEach((snap) => { if (snap.exists) known.add(snap.id); });
-      }
-      return known;
     },
 
     async expireMissingItems(groupId, listId, seenIds, nowIso) {
@@ -136,12 +133,15 @@ export function firestoreFeedStore(db: Firestore): FeedStore {
     },
 
     async propagateExpiration(listings) {
-      for (const listing of listings) {
-        const matches = await db.collection('matches').where('listing_id', '==', listing.id).get();
+      // One `in` query + one batch per 30 listings (matches are rare, so the
+      // batch stays far below 500 ops).
+      for (const chunk of chunks(listings, IN_QUERY_LIMIT)) {
+        const expiredAt = new Map(chunk.map((l) => [l.id, l.expired_at]));
+        const matches = await db.collection('matches').where('listing_id', 'in', [...expiredAt.keys()]).get();
         const batch = db.batch();
-        batch.set(db.collection('listings').doc(listing.id), { expired_at: listing.expired_at }, { merge: true });
+        for (const [id, at] of expiredAt) batch.set(db.collection('listings').doc(id), { expired_at: at }, { merge: true });
         // Matches embed a snapshot of the listing taken at match time.
-        matches.docs.forEach((m) => batch.update(m.ref, { 'listing.expired_at': listing.expired_at }));
+        matches.docs.forEach((m) => batch.update(m.ref, { 'listing.expired_at': expiredAt.get(m.get('listing_id')) ?? null }));
         await batch.commit();
       }
     },
@@ -172,12 +172,7 @@ export function firestoreFeedStore(db: Firestore): FeedStore {
     },
 
     async updateAccount(uid, provider, patch) {
-      const ref = accountRef(uid, provider);
-      if ((await ref.get()).exists) await ref.update(patch);
-    },
-
-    async deleteAccount(uid, provider) {
-      await accountRef(uid, provider).delete();
+      await updateIfExists(accountRef(uid, provider), patch);
     },
   };
 }

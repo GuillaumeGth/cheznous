@@ -25,7 +25,10 @@ export async function setGlobalProviderToken(token: string): Promise<AlertsResul
   return data;
 }
 
-export type RefetchResult = AlertsResult & { feeds: number; newItems: number; expiredItems: number };
+export type RefetchResult = { feeds: number; newItems: number; expiredItems: number };
+
+/** Shown to every user when the app-wide Jinka token has lapsed. */
+export const APP_TOKEN_EXPIRED_MESSAGE = "Le token Jinka de l'app a expiré : l'administrateur doit le remplacer.";
 
 /**
  * Re-reads the alert list and every page of the caller's linked alerts now

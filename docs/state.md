@@ -68,9 +68,9 @@ Wrapper du store `listingsStore` (singleton module, survit au démontage de l'é
 
 - `refresh(force?)` : repart de la première page. Throttlé 30 min pour une même clé `groupId|listId|filters`, sauf `force=true` ou erreur précédente.
 - `loadMore()` : page suivante via `getListingsDataSource()` (curseur opaque) ; exclut les annonces déjà swipées dans la recherche.
-- `error` : `{ code, message }` ; bloque l'auto-pagination jusqu'au prochain refresh.
+- `error` : message affichable (`string | null`) ; bloque l'auto-pagination jusqu'au prochain refresh.
 - `queryKey` : change avec le groupe, la recherche active ou ses filtres → l'écran swipe force un refresh.
-- `refreshListingsIfActive(listId)` : recharge la pile après liaison d'une alerte (`FeedSourcePicker`) ou un refetch manuel (`ProviderAccountSection`).
+- `refreshActiveListings()` : recharge la pile après un refetch manuel ou un nouveau token (`ProviderAccountSection`). Après une liaison d'alerte, c'est l'écran swipe qui recharge seul (`feedKey`).
 
 ```ts
 const { stack, isLoading, error, loadMore, refresh, pop, pushBack, queryKey } = useListings();

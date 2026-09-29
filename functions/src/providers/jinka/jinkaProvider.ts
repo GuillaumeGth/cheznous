@@ -72,28 +72,6 @@ export function createJinkaProvider(options: JinkaProviderOptions = {}): Listing
   return {
     id: 'jinka',
 
-    async authenticate(email, password) {
-      const res = await paced(`${API_BASE}/user/auth`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Origin: WEB_ORIGIN,
-        },
-        body: new URLSearchParams({ email, password }).toString(),
-      });
-      // 429 = rate limited, not a credentials problem.
-      if (res.status >= 400 && res.status < 500 && res.status !== 429) {
-        throw new ProviderAuthError('Identifiants Jinka invalides');
-      }
-      if (!res.ok) throw new JinkaHttpError(res.status, `Jinka auth failed: ${res.status}`);
-      const data = (await res.json()) as { access_token?: unknown };
-      if (typeof data.access_token !== 'string' || !data.access_token) {
-        throw new JinkaHttpError(res.status, 'Jinka auth response has no access_token');
-      }
-      return data.access_token;
-    },
-
     async listAlerts(token): Promise<ProviderAlert[]> {
       const data = await getJson('/alert', token);
       if (!Array.isArray(data)) throw new JinkaHttpError(200, 'Unexpected Jinka /alert response');

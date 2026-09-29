@@ -13,7 +13,6 @@ const mockSource: { current: ListingsDataSource } = {
 const mockSwipedIds = jest.fn<Promise<Set<string>>, [string, string]>();
 
 jest.mock('@/services/listings', () => ({
-  ...jest.requireActual('@/services/listings/types'),
   getListingsDataSource: () => mockSource.current,
   fetchSwipedListingIds: (uid: string, listId: string) => mockSwipedIds(uid, listId),
 }));
@@ -50,7 +49,6 @@ jest.mock('@/stores/authStore', () => {
 
 import { useListings } from '@/hooks/useListings';
 import { useListingsStore } from '@/stores/listingsStore';
-import { DataSourceError } from '@/services/listings/types';
 
 // --- Tiny renderHook on top of react-test-renderer --------------------------
 const mounted: TestRenderer.ReactTestRenderer[] = [];
@@ -181,7 +179,7 @@ describe('useListings — source calls are kept under control', () => {
   });
 
   it('stores the error and stops auto-pagination until a refresh', async () => {
-    mockFetchPage.mockRejectedValueOnce(new DataSourceError('network', 'Hors ligne'));
+    mockFetchPage.mockRejectedValueOnce(new Error('offline'));
     const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const { result } = renderHook(() => useListings());
 
@@ -189,7 +187,7 @@ describe('useListings — source calls are kept under control', () => {
     await act(async () => { await result.current.loadMore(); });
 
     expect(mockFetchPage).toHaveBeenCalledTimes(1);
-    expect(result.current.error).toEqual({ code: 'network', message: 'Hors ligne' });
+    expect(result.current.error).toBe('Impossible de charger les annonces.');
 
     mockFetchPage.mockResolvedValue(page(makeListings(3), false));
     await act(async () => { result.current.refresh(); }); // error bypasses the throttle

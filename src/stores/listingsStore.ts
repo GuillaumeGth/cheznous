@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { Listing } from '@/types';
 import {
-  DataSourceError, DataSourceErrorCode, fetchSwipedListingIds, getListingsDataSource,
-  ListingsCursor, ListingsQuery,
+  fetchSwipedListingIds, getListingsDataSource, ListingsCursor, ListingsQuery,
 } from '@/services/listings';
 import { db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -13,7 +12,7 @@ const REFRESH_THROTTLE_MS = 30 * 60 * 1000;
 // exist. Keep reading a few pages per loadMore before giving up.
 const MAX_PAGES_PER_LOAD = 5;
 
-export type ListingsError = { code: DataSourceErrorCode; message: string };
+const LOAD_ERROR_MESSAGE = 'Impossible de charger les annonces.';
 
 type ListingsState = {
   stack: Listing[];
@@ -23,7 +22,7 @@ type ListingsState = {
   /** False once the source is exhausted — stops auto-pagination. */
   hasMore: boolean;
   /** Set on failure; blocks auto-pagination until the next refresh. */
-  error: ListingsError | null;
+  error: string | null;
   /** Time + query of the last refresh, used to skip redundant fetches. */
   lastRefresh: { time: number; key: string } | null;
   /** Listings already swiped in this list (loaded on the first page). */
@@ -37,11 +36,6 @@ type ListingsState = {
 
 export const listingsQueryKey = (q: ListingsQuery) =>
   `${q.groupId}|${q.listId}|${JSON.stringify(q.filters)}`;
-
-function toListingsError(e: unknown): ListingsError {
-  if (e instanceof DataSourceError) return { code: e.code, message: e.message };
-  return { code: 'network', message: 'Impossible de charger les annonces.' };
-}
 
 // Bumped by every refresh: a load started before it must not write its
 // (stale) results into the new stack.
@@ -90,7 +84,7 @@ export const useListingsStore = create<ListingsState>((set, get) => ({
       set((s) => ({ stack: [...s.stack, ...fresh], cursor, hasMore: more, swipedIds }));
     } catch (e) {
       console.error('loadMore error', e);
-      if (gen === generation) set({ error: toListingsError(e) });
+      if (gen === generation) set({ error: LOAD_ERROR_MESSAGE });
     } finally {
       if (gen === generation) set({ isLoading: false });
     }

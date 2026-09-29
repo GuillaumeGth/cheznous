@@ -10,8 +10,6 @@ import { Listing, ProviderAlert, ProviderId } from '../types';
  */
 export interface ListingProvider {
   readonly id: ProviderId;
-  /** Exchanges credentials for a token. Throws `ProviderAuthError` if refused. */
-  authenticate(email: string, password: string): Promise<string>;
   listAlerts(token: string): Promise<ProviderAlert[]>;
   /** Page is 1-based; `nbPages` is the provider's page count for that alert. */
   fetchAlertPage(token: string, alertId: string, page: number): Promise<ProviderAlertPage>;
@@ -30,7 +28,7 @@ export class ProviderAlertNotFoundError extends Error {
   }
 }
 
-/** Invalid credentials or expired token — the user must reconnect. */
+/** Token refused or expired — the admin must replace it. */
 export class ProviderAuthError extends Error {
   constructor(message: string) {
     super(message);
