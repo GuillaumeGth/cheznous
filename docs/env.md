@@ -6,10 +6,12 @@
 `.env.local` (ignoré par git via `.env*.local`, chargé en priorité par Expo) :
 
 ```env
-EXPO_PUBLIC_LISTINGS_SOURCE=      # 'mock' = annonces générées localement ; omis = flux Jinka (Cloud Functions)
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID= # Google OAuth web client ID (console GCP)
-EXPO_PUBLIC_FLUXIMMO_KEY=         # réservé, non câblé
+EXPO_PUBLIC_LISTINGS_SOURCE=          # 'mock' = annonces générées localement ; omis = flux Jinka (Cloud Functions)
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=     # Google OAuth web client ID (console GCP)
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID= # Google OAuth Android client ID (optionnel)
 ```
+
+Toutes sont optionnelles.
 
 Le préfixe `EXPO_PUBLIC_` rend les variables accessibles côté client via `process.env.EXPO_PUBLIC_*`.
 

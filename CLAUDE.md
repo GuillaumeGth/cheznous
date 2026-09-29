@@ -139,7 +139,9 @@ Listings come from **Jinka** (no public API — its internal web API, ported fro
 `.env` is a committed template with empty values; put real values in `.env.local` (git-ignored, loaded by Expo with priority). Prefix `EXPO_PUBLIC_` makes them available client-side:
 
 ```
-EXPO_PUBLIC_LISTINGS_SOURCE=     # 'mock' = locally generated listings; omit = Jinka feed
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID= # Google OAuth web client ID
-EXPO_PUBLIC_FLUXIMMO_KEY=        # reserved, not yet wired up
+EXPO_PUBLIC_LISTINGS_SOURCE=          # 'mock' = locally generated listings; omit = Jinka feed
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=     # Google OAuth web client ID
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID= # Google OAuth Android client ID (optional)
 ```
+
+No Jinka key client-side: each user connects their account from the Profile; the token stays server-side.
