@@ -16,6 +16,7 @@ import { DEFAULT_FILTERS, FeedItem } from '@/types';
 import { FEED_PAGE_SIZE, feedDataSource } from '@/services/listings/feedDataSource';
 import { MOCK_PAGE_SIZE, mockDataSource } from '@/services/listings/mock/mockDataSource';
 import { matchesFilters } from '@/services/listings/matchesFilters';
+import { listingUrl } from '@/services/listings/listingUrl';
 
 const QUERY = { groupId: 'g1', listId: 'l1', filters: DEFAULT_FILTERS };
 
@@ -100,5 +101,18 @@ describe('matchesFilters', () => {
     expect(matchesFilters(base, { ...DEFAULT_FILTERS, surface_max: 30 })).toBe(false);
     expect(matchesFilters(base, { ...DEFAULT_FILTERS, rooms_min: 3 })).toBe(false);
     expect(matchesFilters(base, { ...DEFAULT_FILTERS, price_min: 1200, price_max: 1200 })).toBe(true);
+  });
+});
+
+describe('listingUrl', () => {
+  it('rewrites the legacy (404) Jinka API link to the public ad link', () => {
+    expect(listingUrl('https://api.jinka.fr/alert_result_view_ad?ad=100072114&alert_token=abc123'))
+      .toBe('https://www.jinka.fr/alert_result?token=abc123&ad=100072114');
+  });
+
+  it('leaves other links untouched', () => {
+    const url = 'https://www.jinka.fr/alert_result?token=abc123&ad=1';
+    expect(listingUrl(url)).toBe(url);
+    expect(listingUrl('https://www.seloger.com/annonces/1.htm')).toBe('https://www.seloger.com/annonces/1.htm');
   });
 });

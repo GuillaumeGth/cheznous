@@ -4,28 +4,6 @@ const { width: SCREEN_W } = Dimensions.get('window');
 
 export const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F8F9FA' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  headerTitles: { flex: 1, marginRight: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerText: { flex: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  appName: { fontSize: 24, fontWeight: '800', color: '#1A1A2E', flexShrink: 1 },
-  partnerStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  partnerStatus: { fontSize: 12, color: '#888' },
-  filterBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#D0D8FF',
-  },
   cardsArea: {
     flex: 1,
     alignItems: 'center',
@@ -42,18 +20,16 @@ export const styles = StyleSheet.create({
     marginTop: 8,
   },
   reloadText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  floatingNoteBtn: {
+  // Over the card's top-left corner: card = 16 from the sides, 8 from the top.
+  floatingFilterBtn: {
     position: 'absolute',
-    right: 8,
-    top: '50%',
-    marginTop: -27,
-    width: 54, height: 54, borderRadius: 27,
-    shadowColor: '#A855F7', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
-  },
-  floatingNoteInner: {
-    width: 54, height: 54, borderRadius: 27,
+    top: 20,
+    left: 28,
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2, shadowRadius: 6, elevation: 9,
   },
   floatingShareBtn: {
     position: 'absolute',

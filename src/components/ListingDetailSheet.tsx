@@ -10,6 +10,8 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Listing } from '@/types';
+import { listingUrl } from '@/services/listings/listingUrl';
+import ListingNotesPanel from '@/components/ListingNotesPanel';
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
 const SHEET_H = SCREEN_H * 0.88;
@@ -18,9 +20,11 @@ const DISMISS_THRESHOLD = 80;
 type Props = {
   listing: Listing | null;
   onClose: () => void;
+  // Group members (self included) whose notes are shown; no notes section without it.
+  members?: { id: string; display_name: string }[];
 };
 
-export default function ListingDetailSheet({ listing, onClose }: Props) {
+export default function ListingDetailSheet({ listing, onClose, members }: Props) {
   const translateY = useSharedValue(SHEET_H);
   const backdropOpacity = useSharedValue(0);
   const insets = useSafeAreaInsets();
@@ -128,7 +132,7 @@ export default function ListingDetailSheet({ listing, onClose }: Props) {
               )}
               <TouchableOpacity
                 style={styles.externalLink}
-                onPress={() => Linking.openURL(listing.url)}
+                onPress={() => Linking.openURL(listingUrl(listing.url))}
               >
                 <Ionicons name="open-outline" size={18} color="#4A6CF7" />
               </TouchableOpacity>
@@ -180,6 +184,14 @@ export default function ListingDetailSheet({ listing, onClose }: Props) {
               {listing.has_terrace && <Feature icon="sunny-outline" label="Terrasse" />}
               {listing.has_parking && <Feature icon="car-outline" label="Parking" />}
             </View>
+
+            {members && (
+              <ListingNotesPanel
+                listingId={listing.id}
+                listingTitle={listing.title}
+                members={members}
+              />
+            )}
 
             {listing.description ? (
               <View style={styles.section}>

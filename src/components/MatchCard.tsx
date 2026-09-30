@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Match } from '@/types';
 import NotesSection from '@/components/NotesSection';
 import ExpiredBadge from '@/components/ExpiredBadge';
+import { listingUrl } from '@/services/listings/listingUrl';
 
 type Member = { id: string; display_name: string };
 
@@ -72,7 +73,7 @@ export default function MatchCard({ match, members, myUid }: Props) {
         <View style={styles.actions}>
           <TouchableOpacity
             style={styles.contactBtn}
-            onPress={() => Linking.openURL(listing.url)}
+            onPress={() => Linking.openURL(listingUrl(listing.url))}
           >
             <Text style={styles.contactText}>Voir l'annonce</Text>
           </TouchableOpacity>

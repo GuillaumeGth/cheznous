@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Like } from '@/hooks/useLikes';
 import NotesSection from '@/components/NotesSection';
 import ExpiredBadge from '@/components/ExpiredBadge';
+import { listingUrl } from '@/services/listings/listingUrl';
 
 type Member = { id: string; display_name: string };
 
@@ -46,7 +47,7 @@ export default function LikeCard({ like, members, myUid }: Props) {
           </View>
           <Text style={styles.metaDate}>Le {likeDate}</Text>
         </View>
-        <TouchableOpacity style={styles.btn} onPress={() => Linking.openURL(listing.url)}>
+        <TouchableOpacity style={styles.btn} onPress={() => Linking.openURL(listingUrl(listing.url))}>
           <Text style={styles.btnText}>Voir l'annonce</Text>
         </TouchableOpacity>
         <NotesSection listingId={like.listing_id} members={members} myUid={myUid} />

@@ -217,6 +217,12 @@ export default function ChatScreen() {
     return list;
   }, [myUid, myName, myPhoto, memberProfiles]);
 
+  // Tous les membres (soi inclus) dont les notes s'affichent dans la fiche d'une annonce.
+  const noteMembers = useMemo(() => {
+    const others = memberProfiles.map((p) => ({ id: p.id, display_name: p.display_name }));
+    return myUid ? [{ id: myUid, display_name: myName }, ...others] : others;
+  }, [myUid, myName, memberProfiles]);
+
   // Scroll to bottom on new messages only, not on full re-renders.
   const prevLengthRef = useRef(0);
   useEffect(() => {
@@ -357,7 +363,7 @@ export default function ChatScreen() {
         onCancel={cancelDelete}
       />
 
-      <ListingDetailSheet listing={detailListing} onClose={closeListing} />
+      <ListingDetailSheet listing={detailListing} onClose={closeListing} members={noteMembers} />
     </SafeAreaView>
   );
 }

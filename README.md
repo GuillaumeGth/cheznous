@@ -267,7 +267,7 @@ Voir `.claude/rules/state-stability.md` pour le détail. Règles clés (obligato
 app/                    Routes Expo Router (écrans)
 src/
   components/           Composants UI (cartes, modals, chat, groupes, primitives)
-  hooks/                Logique métier (useChat, useSwipeActions, useNotes, useGroups…)
+  hooks/                Logique métier (useChat, useSwipeActions, useListingNotes, useGroups…)
   lib/                  Init Firebase, notifications, upload, query client, logging
   services/             listings/ (sources d'annonces), providerAccounts, groups, follows…
   stores/              Stores Zustand (authStore, filterStore, listingsStore)

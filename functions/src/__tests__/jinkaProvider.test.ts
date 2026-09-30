@@ -75,7 +75,7 @@ describe('mapJinkaAd', () => {
       address: 'Paris 75020',
       images: ['https://img/1.jpg', 'https://img/2.jpg'],
       source: 'SeLoger',
-      url: 'https://api.jinka.fr/alert_result_view_ad?ad=ad-1&alert_token=alert-9',
+      url: 'https://www.jinka.fr/alert_result?token=alert-9&ad=ad-1',
       lat: 48.86,
       expired_at: null,
     });

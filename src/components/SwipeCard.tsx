@@ -15,9 +15,10 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Listing } from '@/types';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = SCREEN_W - 32;
-const CARD_H = SCREEN_H * 0.72;
+// Card offset from the top of the cards area (the floating filter button sits on it).
+const CARD_TOP = 8;
 const SWIPE_THRESHOLD = 100;
 const PHOTO_SWIPE_THRESHOLD = 40;
 const PHOTO_SWIPE_VELOCITY = 500;
@@ -33,11 +34,9 @@ type Props = {
   isTop: boolean;
   index: number;
   onInfoPress?: () => void;
-  partnerNote?: string | null;
-  partnerName?: string | null;
 };
 
-export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, canUndo, isTop, index, onInfoPress, partnerNote, partnerName }: Props) {
+export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, canUndo, isTop, index, onInfoPress }: Props) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   // Bottom edge of the photo area (card coordinates): a pan starting above it
@@ -218,15 +217,6 @@ export default function SwipeCard({ listing, onSwipeLeft, onSwipeRight, onUndo, 
             {has_elevator && <Tag iconName="arrow-up-circle-outline" label="Ascenseur" />}
             {has_balcony && <Tag iconName="leaf-outline" label="Balcon" />}
           </View>
-
-          {partnerNote ? (
-            <View style={styles.partnerNote}>
-              <Ionicons name="pencil" size={12} color="#4A6CF7" />
-              <Text style={styles.partnerNoteName}>{partnerName ?? 'Ton partenaire'} :</Text>
-              <Text style={styles.partnerNoteText} numberOfLines={2}>{partnerNote}</Text>
-            </View>
-          ) : null}
-
         </View>
        </Pressable>
 
@@ -265,9 +255,11 @@ function Tag({ iconName, label }: { iconName: React.ComponentProps<typeof Ionico
 
 const styles = StyleSheet.create({
   card: {
+    // Fills the cards area (the parent centers it horizontally).
     position: 'absolute',
+    top: CARD_TOP,
+    bottom: 16,
     width: CARD_W,
-    height: CARD_H,
     borderRadius: 20,
     backgroundColor: '#fff',
     shadowColor: '#000',
@@ -423,27 +415,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#4A6CF7',
     fontWeight: '600',
-  },
-  partnerNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-    marginTop: 10,
-    backgroundColor: '#F0F4FF',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  partnerNoteName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4A6CF7',
-    flexShrink: 0,
-  },
-  partnerNoteText: {
-    fontSize: 12,
-    color: '#333',
-    flex: 1,
   },
   cardActions: {
     flexDirection: 'row',

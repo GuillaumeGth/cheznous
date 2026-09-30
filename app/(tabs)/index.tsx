@@ -14,22 +14,17 @@ import { APP_TOKEN_EXPIRED_MESSAGE } from '@/services/providerAccounts';
 import { useGroup } from '@/hooks/useGroup';
 import { useNewListingsNotify } from '@/hooks/useNewListingsNotify';
 import { useSwipeActions } from '@/hooks/useSwipeActions';
-import { useNotes } from '@/hooks/useNotes';
 import SwipeCard from '@/components/SwipeCard';
 import FilterSheet from '@/components/FilterSheet';
 import ListingDetailSheet from '@/components/ListingDetailSheet';
-import NoteModal from '@/components/NoteModal';
 import ConfettiOverlay from '@/components/ConfettiOverlay';
-import MemberAvatars from '@/components/MemberAvatars';
 import Toast, { ToastType } from '@/components/Toast';
-import { GroupMember, Listing } from '@/types';
+import { Listing } from '@/types';
 import { styles } from '@/styles/swipeScreen.styles';
 
 const GRADIENT_START = { x: 0, y: 0 } as const;
 const GRADIENT_END = { x: 1, y: 1 } as const;
-const FILTER_GRADIENT = ['#F0F4FF', '#E8EDFF'] as const;
 const ACTION_GRADIENT = ['#4A6CF7', '#A855F7'] as const;
-const NOTE_GRADIENT = ['#5B4FE9', '#A855F7'] as const;
 const SHARE_GRADIENT = ['#4A6CF7', '#6A8BFF'] as const;
 const SAFE_EDGES = ['top'] as const;
 // Feed (Jinka via Cloud Functions) needs a linked alert; the local mock doesn't.
@@ -37,14 +32,12 @@ const NEEDS_FEED_LINK = getListingsDataSource().kind === 'feed';
 
 type ActiveModal =
   | { type: 'filter' }
-  | { type: 'note' }
   | { type: 'detail'; listing: Listing };
 
 export default function SwipeScreen() {
   const uid = useAuthStore((s) => s.firebaseUser?.uid);
   const groupId = useAuthStore((s) => s.groupId);
   const displayName = useAuthStore((s) => s.profile?.display_name);
-  const myPhoto = useAuthStore((s) => s.profile?.photo_url);
   const hasSearch = useFilterStore((s) => s.searchLists.length > 0);
   const activeListId = useFilterStore((s) => s.activeListId);
 
@@ -68,12 +61,6 @@ export default function SwipeScreen() {
     groupRef, stackRef, pop, pushBack,
   );
 
-  // Use the first coloc's notes for the top card (shows one coloc's note at a time)
-  const firstColocId = memberProfiles[0]?.id ?? null;
-  const firstColocName = memberProfiles[0]?.display_name ?? null;
-
-  const { notes, saveNote } = useNotes(stack[0], firstColocId);
-
   const [modal, setModal] = useState<ActiveModal | null>(null);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
@@ -91,14 +78,11 @@ export default function SwipeScreen() {
     if (canLoad && stack.length <= 3 && !isLoading) loadMore();
   }, [canLoad, stack.length, isLoading, loadMore]);
 
-  const members = useMemo<GroupMember[]>(() => {
-    const result: GroupMember[] = [];
-    if (uid && displayName) result.push({ uid, displayName, photoUrl: myPhoto ?? null });
-    memberProfiles.forEach((p) =>
-      result.push({ uid: p.id, displayName: p.display_name, photoUrl: p.photo_url }),
-    );
-    return result;
-  }, [uid, displayName, myPhoto, memberProfiles]);
+  // All members (self included) whose notes are shown in the detail sheet.
+  const noteMembers = useMemo(() => {
+    const others = memberProfiles.map((p) => ({ id: p.id, display_name: p.display_name }));
+    return uid ? [{ id: uid, display_name: displayName ?? '' }, ...others] : others;
+  }, [uid, displayName, memberProfiles]);
 
   const visibleCards = useMemo(() => {
     const top = stack.slice(0, 3);
@@ -124,38 +108,12 @@ export default function SwipeScreen() {
       : { message: "Le partage a échoué, réessaie", type: 'error' });
   }, [handleShareToChat]);
   const handleToastHide = useCallback(() => setToast(null), []);
-  const handleNotePress = useCallback(() => setModal({ type: 'note' }), []);
   const handleFilterPress = useCallback(() => setModal({ type: 'filter' }), []);
   const handleReload = useCallback(() => refresh(true), [refresh]);
   const handleModalClose = useCallback(() => setModal(null), []);
 
-  const hasColocs = (group?.member_ids?.length ?? 0) > 1;
-
   return (
     <SafeAreaView style={styles.safe} edges={SAFE_EDGES}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTitles}>
-          <View style={styles.headerText}>
-            <View style={styles.titleRow}>
-              <Text style={styles.appName} numberOfLines={1}>Explorer</Text>
-              {hasColocs && <MemberAvatars members={members} />}
-            </View>
-            {group && !hasColocs && (
-              <View style={styles.partnerStatusRow}>
-                <Ionicons name="time-outline" size={12} color="#888" />
-                <Text style={styles.partnerStatus}>En attente des colocs</Text>
-              </View>
-            )}
-          </View>
-        </View>
-        <TouchableOpacity onPress={handleFilterPress}>
-          <LinearGradient colors={FILTER_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.filterBtn}>
-            <Ionicons name="options-outline" size={16} color="#4A6CF7" />
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
       {/* Cards area */}
       <View style={styles.cardsArea}>
         {!hasSearch ? (
@@ -205,11 +163,14 @@ export default function SwipeScreen() {
               onUndo={isTop ? handleUndo : undefined}
               canUndo={isTop ? !!lastSwipeRef.current : undefined}
               onInfoPress={isTop ? handleInfoPress : undefined}
-              partnerNote={isTop ? notes.partner : null}
-              partnerName={isTop ? firstColocName : null}
             />
           ))
         )}
+
+        {/* Filter button — floats over the card's top-left corner */}
+        <TouchableOpacity style={styles.floatingFilterBtn} onPress={handleFilterPress} hitSlop={8}>
+          <Ionicons name="options-outline" size={20} color="#4A6CF7" />
+        </TouchableOpacity>
       </View>
 
       {/* Confetti + Match notification */}
@@ -234,15 +195,6 @@ export default function SwipeScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Note button — right edge, vertically centred in cards area */}
-      {stack.length > 0 && (
-        <TouchableOpacity style={styles.floatingNoteBtn} onPress={handleNotePress}>
-          <LinearGradient colors={NOTE_GRADIENT} start={GRADIENT_START} end={GRADIENT_END} style={styles.floatingNoteInner}>
-            <Ionicons name={notes.mine ? 'chatbox' : 'chatbox-outline'} size={24} color="#fff" />
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
-
       <FilterSheet
         visible={modal?.type === 'filter'}
         onClose={handleModalClose}
@@ -250,13 +202,7 @@ export default function SwipeScreen() {
       <ListingDetailSheet
         listing={modal?.type === 'detail' ? modal.listing : null}
         onClose={handleModalClose}
-      />
-      <NoteModal
-        visible={modal?.type === 'note'}
-        initialText={notes.mine}
-        listingTitle={stack[0]?.title ?? ''}
-        onSave={saveNote}
-        onClose={handleModalClose}
+        members={noteMembers}
       />
       <Toast
         message={toast?.message ?? ''}

@@ -84,17 +84,16 @@ Deux onglets : **Créer** / **Rejoindre**.
 3. `checkForMatch()` : si liste solo → `createMatch()`. Si liste partagée → query swipes partenaire → `createMatch()` si trouvé.
 4. `createMatch()` : écrit `matches/{coupleId}_{listingId}`, affiche le banner "C'est un match !" 3 s.
 
-**Notes** :
-- Fetch les notes (soi + partenaire) quand le top card change.
-- `NoteModal` permet d'écrire/modifier sa note (`notes/{uid}_{listingId}`).
-- La note du partenaire est affichée sur la carte courante.
+**Notes** : pas sur l'écran de swipe. Elles vivent dans la fiche détaillée (`ListingDetailSheet` → `ListingNotesPanel`) : notes de tous les membres + `NoteModal` pour écrire/modifier la sienne (`notes/{uid}_{listingId}`).
 
 **UI** :
-- Header : titre « Explorer » (pas de nom de groupe : il n'y en a qu'un) + avatars des colocs + bouton filtres.
+- Pas de header : la carte occupe toute la hauteur disponible.
+- Bouton filtres flottant sur le coin haut-gauche de la carte.
 - Stack de 3 cartes (reverse render pour z-index).
-- Boutons bas : ✕ passer, crayon note, ♥ like.
+- Boutons bas de carte : ✕ passer, ↶ annuler, ♥ like.
+- Bouton flottant à gauche : partager l'annonce dans le chat du groupe.
 - Banner match animé en overlay.
-- Modals : `FilterSheet`, `ListingDetailSheet`, `NoteModal`.
+- Modals : `FilterSheet`, `ListingDetailSheet`.
 
 ---
 

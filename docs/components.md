@@ -20,8 +20,6 @@ Carte de listing glissable. Seule la carte du dessus (`isTop=true`) est interact
 | onSwipeLeft | () => void | callback swipe gauche |
 | onSwipeRight | () => void | callback swipe droit |
 | onInfoPress? | () => void | ouvre le détail (top seulement) |
-| partnerNote? | string \| null | note du partenaire |
-| partnerName? | string \| null | prénom du partenaire |
 
 **Animation** :
 - `translateX` / `translateY` (Reanimated shared values).
@@ -32,7 +30,7 @@ Carte de listing glissable. Seule la carte du dessus (`isTop=true`) est interact
 
 **Carousel d'images** : dots cliquables, `imageIndex` en state local.
 
-**Dimensions** : `CARD_W = SCREEN_W - 32`, `CARD_H = SCREEN_H * 0.65`.
+**Dimensions** : `CARD_W = SCREEN_W - 32` ; la hauteur remplit la zone des cartes (`top: 8`, `bottom: 16`).
 
 ---
 
@@ -64,7 +62,7 @@ Fichier : `src/components/ListingDetailSheet.tsx`
 
 Bottom sheet animée affichant le détail complet d'un listing.
 
-**Props** : `listing: Listing | null`, `onClose: () => void`.
+**Props** : `listing: Listing | null`, `onClose: () => void`, `members?` (membres du groupe, soi inclus ; sans eux pas de section notes).
 
 **Animation** :
 - `translateY` (Reanimated) : spring open/close.
@@ -78,6 +76,7 @@ Bottom sheet animée affichant le détail complet d'un listing.
 - Adresse + arrondissement.
 - Date de disponibilité.
 - Tags features (surface, pièces, étage, ascenseur, balcon, terrasse, parking).
+- Section **Notes** (`ListingNotesPanel`) : notes de tous les membres + bouton « Laisser / Modifier ma note » qui ouvre `NoteModal`.
 - Description.
 - Lien externe (`Linking.openURL`).
 
@@ -121,7 +120,7 @@ Carte lecture seule pour les right-swipes personnels non encore matchés.
 
 Fichier : `src/components/NoteModal.tsx`
 
-Bottom sheet (Modal transparent) pour écrire une note sur le listing en tête de stack.
+Bottom sheet (Modal transparent) pour écrire sa note sur un listing, ouverte depuis la section Notes de `ListingDetailSheet`.
 
 **Props** :
 

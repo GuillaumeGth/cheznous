@@ -11,7 +11,7 @@ type Props = {
 };
 
 export default function NotesSection({ listingId, members, myUid }: Props) {
-  const notes = useListingNotes(listingId, members, myUid);
+  const { notes } = useListingNotes(listingId, members, myUid);
   if (notes.length === 0) return null;
 
   return (

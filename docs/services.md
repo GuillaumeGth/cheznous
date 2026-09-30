@@ -51,7 +51,7 @@ App : ListingsDataSource (feed | mock) → listingsStore → écran swipe
 | `POST /apiv2/user/auth` (form-urlencoded) | email + mot de passe → `access_token` |
 | `GET /apiv2/alert` | alertes du compte |
 | `GET /apiv2/alert/{id}/dashboard?filter=all&page=N` | annonces d'une alerte (`ads[]`, `pagination.nbPages`) |
-| `GET /alert_result_view_ad?ad=…&alert_token=…` | redirection vers l'annonce d'origine (utilisée comme `url` si pas de `webview_link`) |
+| `GET https://www.jinka.fr/alert_result?token={alertId}&ad={adId}` | lien public de l'annonce (celui des e-mails d'alerte) → `jinka.fr/ad/{uuid}` ; ouvre l'app Jinka si installée. Utilisé comme `url` si pas de `webview_link`. ⚠ `api.jinka.fr/alert_result_view_ad` n'existe pas (404) et, `api.jinka.fr` étant un App Link de l'app Jinka, ouvrait juste son accueil |
 
 ### Compte Jinka unique (global)
 

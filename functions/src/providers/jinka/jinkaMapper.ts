@@ -25,7 +25,7 @@ export type JinkaRawAd = {
 // `listings` / `swipes` / `matches` collections.
 export const JINKA_ID_PREFIX = 'jinka_';
 
-const API_ORIGIN = 'https://api.jinka.fr';
+const WEB_ORIGIN = 'https://www.jinka.fr';
 
 function num(value: unknown): number | null {
   const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
@@ -56,9 +56,13 @@ export function arrondissementFromPostalCode(postalCode: string | null | undefin
   return n >= 1 && n <= 20 ? n : 0;
 }
 
-/** Redirect endpoint that resolves to the ad on its original site (SeLoger, PAP…). */
-export function adRedirectUrl(adId: string, alertId: string): string {
-  return `${API_ORIGIN}/alert_result_view_ad?${new URLSearchParams({ ad: adId, alert_token: alertId })}`;
+/**
+ * Public link to the ad (the one Jinka's alert emails use): redirects to
+ * `jinka.fr/ad/{uuid}`, and opens the ad in the Jinka app when it's installed
+ * (`/alert_result` is one of its App/Universal Link paths).
+ */
+export function adPublicUrl(adId: string, alertId: string): string {
+  return `${WEB_ORIGIN}/alert_result?${new URLSearchParams({ token: alertId, ad: adId })}`;
 }
 
 // An ad the user deleted on Jinka is as good as expired for us.
@@ -81,7 +85,7 @@ export function mapJinkaAd(ad: JinkaRawAd, alertId: string): Listing {
     arrondissement,
     images: images(ad.images),
     description: ad.description ?? '',
-    url: ad.webview_link || adRedirectUrl(adId, alertId),
+    url: ad.webview_link || adPublicUrl(adId, alertId),
     source: ad.source_label ?? ad.source ?? 'Jinka',
     has_elevator: false,
     has_parking: false,
